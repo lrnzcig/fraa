@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">FraaStream</string>
+    <string name="toggle_accelerometer">Tomar datos</string>
+    <string name="disconnect">Desconectar</string>
+    <string name="select_device">Pulsa sobre una MAC</string>
+    <string name="title_connecting">Conectando</string>
+    <string name="message_wait">Espera por favor</string>
+    <string name="label_cancel">Cancelar</string>
+    <string name="title_activity_scanner">Seleccionar dispositivo</string>
+</resources>
