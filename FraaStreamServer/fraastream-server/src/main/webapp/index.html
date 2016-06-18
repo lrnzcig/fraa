@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ALMADRABA</title>
+
+    <link href="css/bootstrap.css" rel="stylesheet">
+    <link href="font-awesome/css/font-awesome.css" rel="stylesheet">
+    <link href="css/plugins/iCheck/custom.css" rel="stylesheet">
+    <link href="css/plugins/chosen/chosen.css" rel="stylesheet">
+    <link href="css/animate.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+    <div id="wrapper">
+
+
+        <div id="page-wrapper" class="gray-bg">
+            <div class="row wrapper border-bottom white-bg page-heading">
+                <div class="col-lg-10">
+                    <h2>Almadraba</h2>
+                    <h4>Notoriety analysis of Social Network users</h4>
+                    <ol class="breadcrumb">
+                        <li>
+                            <a href="index.html">Home</a>
+                        </li>
+                        <li class="active">
+                            <strong>Almadraba</strong>
+                        </li>
+                    </ol>
+                </div>
+                <div class="col-lg-2">
+
+                </div>
+            </div>
+            <div class="wrapper wrapper-content animated fadeInRight">
+
+              <div id="log-in-row" class="row">
+                  <div class="col-lg-5">
+                      <div class="ibox float-e-margins">
+                          <div class="ibox-title">
+                              <h5>Log in</h5>
+                              <div class="ibox-tools">
+                                  <a id="log-in-collapse" class="collapse-link">
+                                      <i class="fa fa-chevron-up"></i>
+                                  </a>
+                                  <a class="close-link">
+                                      <i class="fa fa-times"></i>
+                                  </a>
+                              </div>
+                          </div>
+                          <div class="ibox-content">
+                              <form class="form-horizontal">
+                                  <div id="log-in-message">
+                                    <p>Please introduce your credentials.</p>
+                                  </div>
+                                  <div class="form-group"><label class="col-lg-2 control-label">Email</label>
+                                      <div class="col-lg-10"><input id="username" type="email" placeholder="Email" class="form-control"></input>
+                                      </div>
+                                  </div>
+                                  <div class="form-group"><label class="col-lg-2 control-label">Password</label>
+                                      <div class="col-lg-10"><input id="password" type="password" placeholder="Password" class="form-control"></input></div>
+                                  </div>
+                                  <div class="form-group">
+                                      <div class="col-lg-offset-2 col-lg-10">
+                                          <button class="btn btn-sm btn-white" type="button" id="log-in">Sign in</button>
+                                      </div>
+                                  </div>
+                              </form>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <div id="submit-form" class="row">
+                  <div class="col-lg-8">
+                    <div class="ibox float-e-margins">
+                      <div class="ibox-title">
+                          <h5>Search criteria</h5>
+
+                          <div class="ibox-tools">
+                              <a id="submit-form-collapse" class="collapse-link">
+                                  <i class="fa fa-chevron-up"></i>
+                              </a>
+                              <a class="close-link">
+                                  <i class="fa fa-times"></i>
+                              </a>
+                          </div>
+                      </div>
+                      <div class="ibox-content">
+
+                          <h5>Execution</h5>
+                          <select id="select-execution" data-placeholder="Choose execution label..." class="chosen-select" style="width:350px;" tabindex="2">
+                            <option value="">Select</option>
+                          </select>
+                          <h5>Type of query</h5>
+                          <select id="select-type-of-query" data-placeholder="Choose query type..." class="chosen-select" style="width:350px;" tabindex="2">
+                            <option value="">Select</option>
+                          </select>
+
+                          <h5>Number of users</h5>
+                          <input id="number-of-users" class="form-control" style="min-width:40px"></input>
+                          <form class="form-horizontal">
+                            <div class="form-group">
+                              <div class="col-lg-offset-0 col-lg-4">
+                                <button class="btn btn-sm btn-white" type="button" id="submit-data">Get chart</button>
+                              </div>
+                            </div>
+                          </form>
+                      </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="chart" class="row">
+                <div class="col-lg-8">
+                  <div class="ibox float-e-margins">
+                      <div class="ibox-title">
+                          <h5>Chart</h5>
+                          <div class="ibox-tools">
+                              <a id="chart-collapse" class="collapse-link">
+                                  <i class="fa fa-chevron-up"></i>
+                              </a>
+                              <a class="close-link">
+                                  <i class="fa fa-times"></i>
+                              </a>
+                          </div>
+                      </div>
+                      <div id="high-charts-container-parent" class="ibox-content">
+                        <div id="high-charts-container"></div>
+
+                      </div>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="ibox float-e-margins">
+                    <div class="ibox-title">
+                        <h5>User details</h5>
+                        <div class="ibox-tools">
+                            <a id="user-details-collapse" class="collapse-link">
+                                <i class="fa fa-chevron-up"></i>
+                            </a>
+                            <a class="close-link">
+                                <i class="fa fa-times"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="ibox-content">
+                      <h5 id="user-box-id-h5">user id</h5>
+                      <output id="user-box-id" class="form-control"></output>
+                      <h5 id="user-box-attribute1-h5">Attribute</h5>
+                      <output id="user-box-attribute1" class="form-control"></output>
+                      <h5 id="user-box-attribute2-h5">Attribute</h5>
+                      <output id="user-box-attribute2" class="form-control"></output>
+                      <h5 id="user-box-attribute3-h5">Attribute</h5>
+                      <output id="user-box-attribute3" class="form-control"></output>
+                      <h5 id="user-box-attribute4-h5">Attribute</h5>
+                      <output id="user-box-attribute4" class="form-control"></output>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="footer">
+                  <div>
+                      <strong>Almadraba</strong> 2015/2016
+                  </div>
+              </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script data-main="js/almadraba/main" src="js/require/require-2.1.20.min.js"></script>
+
+</body>
+
+</html>
