@@ -15,6 +15,7 @@ import com.google.gson.Gson;
 import tech.sisifospage.fraastream_server.FraaStreamServerContextListener;
 import tech.sisifospage.fraastream_server.hbm.AccData;
 import tech.sisifospage.fraastream_server.hbm.AccDataId;
+import xre.FraaStreamData;
 import xre.FraaStreamDataUnit;
 
 
@@ -34,18 +35,21 @@ public class DataUnit {
     	//}
     	
     	Gson gson = new Gson();
-    	FraaStreamDataUnit unit = gson.fromJson(unitS, FraaStreamDataUnit.class);
+    	FraaStreamData data = gson.fromJson(unitS, FraaStreamData.class);
     	
-    	AccData data = new AccData(new AccDataId(unit.getHeaderId(), unit.getIndex()), unit.getX(), unit.getY(), unit.getZ());
     	
     	Session session = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
 		session.beginTransaction();
-		session.save(data);
+		
+		for (FraaStreamDataUnit unit : data.getDataUnits()) {
+	    	AccData item = new AccData(new AccDataId(data.getHeaderId(), unit.getIndex()), unit.getX(), unit.getY(), unit.getZ());
+	    	System.out.println(unit.getIndex() + ": (" + unit.getX() + ", " + unit.getY() + ", " + unit.getZ() + ")");
+			session.save(item);
+		}
 		session.getTransaction().commit();
 
     	
     	System.out.println(requestContext.getHeaders().toString());
-    	System.out.println(unit.getIndex() + ": (" + unit.getX() + ", " + unit.getY() + ", " + unit.getZ() + ")");
     	return "allright";
     }
 

@@ -13,6 +13,7 @@ import org.junit.Test;
 import com.google.gson.Gson;
 
 import fraastream_rest_client.utils.ClientUtils;
+import xre.FraaStreamData;
 import xre.FraaStreamDataUnit;
 import xre.FraaStreamHeader;
 
@@ -56,13 +57,21 @@ public class DataUnitPostTest {
 
 		
 		// 2. post data associated to header id
+		FraaStreamData data = new FraaStreamData();
+		data.setHeaderId(newHeader.getId());
 		FraaStreamDataUnit unit = new FraaStreamDataUnit();
-		unit.setHeaderId(newHeader.getId());
 		unit.setIndex(BigInteger.valueOf(1));
 		unit.setX((float) 0.209);
 		unit.setY((float) 0.085);
 		unit.setZ((float) 0.43);
-		String obj2 = gson.toJson(unit);
+		data.addDataUnit(unit);
+		unit = new FraaStreamDataUnit();
+		unit.setIndex(BigInteger.valueOf(2));
+		unit.setX((float) 0.207);
+		unit.setY((float) 0.088);
+		unit.setZ((float) 0.439);
+		data.addDataUnit(unit);
+		String obj2 = gson.toJson(data);
 		Response response2 = client.target("http://localhost:8080/fraastreamserver/webapi").path("data").request()
 				.post(Entity.text(obj2));
 

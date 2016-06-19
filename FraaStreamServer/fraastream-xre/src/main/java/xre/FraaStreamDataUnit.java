@@ -4,7 +4,6 @@ import java.math.BigInteger;
 
 public class FraaStreamDataUnit {
 	
-	private BigInteger headerId;
 	private BigInteger index;
 	private Float x;
 	private Float y;
@@ -12,14 +11,6 @@ public class FraaStreamDataUnit {
 
 	public FraaStreamDataUnit() {
 		super();
-	}
-
-	public BigInteger getHeaderId() {
-		return headerId;
-	}
-
-	public void setHeaderId(final BigInteger headerId) {
-		this.headerId = headerId;
 	}
 
 	public BigInteger getIndex() {

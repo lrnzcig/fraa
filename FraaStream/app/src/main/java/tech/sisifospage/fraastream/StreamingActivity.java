@@ -29,6 +29,7 @@ import com.mbientlab.metawear.data.CartesianFloat;
 import com.mbientlab.metawear.module.Accelerometer;
 import com.mbientlab.metawear.module.Logging;
 
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
@@ -36,6 +37,8 @@ import java.util.zip.GZIPOutputStream;
 public class StreamingActivity extends AppCompatActivity implements ServiceConnection {
 
     private MetaWearBleService.LocalBinder serviceBinder;
+
+    private static final String server_url = "http://192.168.1.128:8080/fraastreamserver/webapi/";
 
     public static final String TAG = "MetaWear";
     private MetaWearBoard mwBoard;
@@ -145,7 +148,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
 
                                     // Instantiate the RequestQueue.
                                     RequestQueue queue = Volley.newRequestQueue(StreamingActivity.this);
-                                    String url ="http://192.168.1.128:8080/fraastreamserver/webapi/data";
+                                    String url = server_url + "data";
 
                                     /*
                                     // Request a string response from the provided URL.
@@ -167,11 +170,15 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                                     queue.add(stringRequest);
                                     */
                                     FraaStreamDataUnit unit = new FraaStreamDataUnit();
-                                    unit.setIndex(index);
+                                    unit.setIndex(BigInteger.valueOf(index));
                                     unit.setX(axes.x());
                                     unit.setY(axes.y());
                                     unit.setZ(axes.z());
                                     index++;
+
+                                    FraaStreamData data = new FraaStreamData();
+                                    data.setHeaderId(BigInteger.TEN);   // TODO get the header id from the server !!
+                                    data.addDataUnit(unit);
 
 
                                     Map<String,String> headers = new HashMap<>();
@@ -182,7 +189,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                                     headers.put("host", "192.168.1.130:8080");
                                     // TODO headers
 
-                                    GsonRequest postRequest = new GsonRequest(Request.Method.POST, url, unit, null,
+                                    GsonRequest postRequest = new GsonRequest(Request.Method.POST, url, data, null,
                                             new Response.Listener<String>() {
                                                 @Override
                                                 public void onResponse(String response) {

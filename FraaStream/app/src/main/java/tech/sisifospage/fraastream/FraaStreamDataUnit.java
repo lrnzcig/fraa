@@ -1,11 +1,13 @@
 package tech.sisifospage.fraastream;
 
+import java.math.BigInteger;
+
 /**
  * Created by lorenzorubio on 29/5/16.
  */
 public class FraaStreamDataUnit {
 
-    private Integer index;
+    private BigInteger index;
     private Float x;
     private Float y;
     private Float z;
@@ -14,11 +16,11 @@ public class FraaStreamDataUnit {
         super();
     }
 
-    public Integer getIndex() {
+    public BigInteger getIndex() {
         return index;
     }
 
-    public void setIndex(final Integer index) {
+    public void setIndex(final BigInteger index) {
         this.index = index;
     }
 

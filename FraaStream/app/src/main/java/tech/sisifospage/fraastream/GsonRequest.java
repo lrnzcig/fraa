@@ -24,7 +24,7 @@ public class GsonRequest extends Request<String> {
     private final Gson gson = new Gson();
     private final Map<String, String> headers;
     private final Response.Listener<String> listener;
-    private final FraaStreamDataUnit params;
+    private final FraaStreamData params;
 
     /**
      * Make a GET request and return a parsed object from JSON.
@@ -34,7 +34,7 @@ public class GsonRequest extends Request<String> {
      * @param params Input object
      * @param headers Map of request headers
      */
-    public GsonRequest(int method, String url, FraaStreamDataUnit params, Map<String, String> headers,
+    public GsonRequest(int method, String url, FraaStreamData params, Map<String, String> headers,
                        Response.Listener<String> listener, Response.ErrorListener errorListener) {
         super(method, url, errorListener);
         this.params = params;
