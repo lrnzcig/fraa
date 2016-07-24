@@ -41,6 +41,7 @@ import java.util.Map;
 
 import tech.sisifospage.fraastream.bbdd.AccDataContract;
 import tech.sisifospage.fraastream.bbdd.FraaDbHelper;
+import tech.sisifospage.fraastream.cache.AccDataCacheSingleton;
 
 public class StreamingActivity extends AppCompatActivity implements ServiceConnection {
 
@@ -69,6 +70,9 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
     public static final String EXTRA_BT_DEVICE = "tech.sisifospage.fraastream.EXTRA_BT_DEVICE";
     private BluetoothDevice btDevice;
 
+    // insert optimization
+    private SQLiteDatabase db;
+
     // handler for connecting to the board
     private final MetaWearBoard.ConnectionStateHandler stateHandler = new MetaWearBoard.ConnectionStateHandler() {
         @Override
@@ -79,11 +83,14 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         @Override
         public void disconnected() {
             Log.i(TAG, "Connected Lost");
+            mwBoard.connect();
         }
 
         @Override
         public void failure(int status, Throwable error) {
             Log.e(TAG, "Error connecting", error);
+            Log.i(TAG, "Reconnecting");
+            mwBoard.connect();
         }
     };
 
@@ -149,6 +156,11 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                     accelModule.setOutputDataRate(ACC_FREQ);
                     accelModule.setAxisSamplingRange(ACC_RANGE);
 
+                    // open ddbb connection only once
+                    FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?
+                    db = fraaDbHelper.getWritableDatabase();
+                    db.beginTransaction();
+
                     // streaming
                     accelModule.routeData()
                             .fromAxes().stream(STREAM_KEY)
@@ -159,10 +171,23 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                                 @Override
                                 public void process(Message message) {
                                     CartesianFloat axes = message.getData(CartesianFloat.class);
-                                    Log.i(TAG, axes.toString());
+                                    //Log.i(TAG, axes.toString());
 
                                     //sendToServer(axes);
-                                    insertIntoDatabase(axes, 10);
+                                    //insertIntoDatabase(axes, 10, db);
+                                    AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+
+                                    FraaStreamDataUnit unit = new FraaStreamDataUnit();
+                                    unit.setIndex(BigInteger.valueOf(index));
+                                    unit.setX(axes.x());
+                                    unit.setY(axes.y());
+                                    unit.setZ(axes.z());
+                                    index++;
+
+                                    cache.add(unit);
+                                    if (index % 100 == 0) {
+                                        Log.i(TAG, "New row id inserted " + index);
+                                    }
 
                                 }
 
@@ -240,23 +265,30 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
 
                         }
 
-                        // TODO move to helper
-                        private void insertIntoDatabase(CartesianFloat axes, Integer headerId) {
-                            FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?
-                            SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
-
+                        // TODO move to helper ??
+                        // careful with transactions
+                        private void insertIntoDatabase(CartesianFloat axes, Integer headerId, SQLiteDatabase db) {
                             ContentValues values = new ContentValues();
                             values.put(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID, headerId);
                             values.put(AccDataContract.AccDataEntry.COLUMN_NAME_X, axes.x());
                             values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Y, axes.y());
                             values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Z, axes.z());
 
-                            long newRowId = db.insert(AccDataContract.AccDataEntry.TABLE_NAME,
-                                    null,
-                                    values);
-
-                            String message = "New row id inserted " + newRowId;
-                            Log.i(TAG, message);
+                            try {
+                                long newRowId = db.insert(AccDataContract.AccDataEntry.TABLE_NAME,
+                                        null,
+                                        values);
+                                if (newRowId % 1000 == 0) {
+                                    // this may cause data to be lost, while connection is reopened
+                                    String message = "New row id inserted " + newRowId;
+                                    Log.i(TAG, message);
+                                    db.setTransactionSuccessful();
+                                    db.endTransaction();
+                                    db.beginTransaction();
+                                }
+                            } catch (Exception e) {
+                                Log.i(TAG, "exception");
+                            }
                         }
 
                         @Override
@@ -272,14 +304,16 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                     accelModule.disableAxisSampling(); //Likewise, you must first disable axis sampling before stopping
                     accelModule.stop();
 
+                    db.endTransaction();
                     // select count
                     FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?
                     SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
 
-                    int count = (int) DatabaseUtils.queryNumEntries(db, AccDataContract.AccDataEntry.TABLE_NAME,
+                    long count = DatabaseUtils.queryNumEntries(db, AccDataContract.AccDataEntry.TABLE_NAME,
                             AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=?", new String[]{"10"});
 
-                    String message = "Total number of rows inserted " + count;
+                    //String message = "Total number of rows inserted " + count;
+                    String message = "Total number of rows inserted " + index;
                     Log.i(TAG, message);
                 }
             }
