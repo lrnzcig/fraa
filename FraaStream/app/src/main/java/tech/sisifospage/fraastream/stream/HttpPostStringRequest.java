@@ -1,4 +1,4 @@
-package tech.sisifospage.fraastream;
+package tech.sisifospage.fraastream.stream;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.Response;

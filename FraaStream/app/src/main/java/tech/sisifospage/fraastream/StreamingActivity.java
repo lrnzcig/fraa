@@ -2,12 +2,10 @@ package tech.sisifospage.fraastream;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
-import android.content.ContentValues;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteDatabase;
-import android.net.Uri;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -17,14 +15,6 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.Volley;
-import com.google.android.gms.appindexing.Action;
-import com.google.android.gms.appindexing.AppIndex;
-import com.google.android.gms.common.api.GoogleApiClient;
 import com.mbientlab.metawear.AsyncOperation;
 import com.mbientlab.metawear.Message;
 import com.mbientlab.metawear.MetaWearBleService;
@@ -35,19 +25,14 @@ import com.mbientlab.metawear.data.CartesianFloat;
 import com.mbientlab.metawear.module.Accelerometer;
 import com.mbientlab.metawear.module.Logging;
 
-import java.math.BigInteger;
-import java.util.HashMap;
-import java.util.Map;
-
 import tech.sisifospage.fraastream.bbdd.AccDataContract;
 import tech.sisifospage.fraastream.bbdd.FraaDbHelper;
 import tech.sisifospage.fraastream.cache.AccDataCacheSingleton;
+import tech.sisifospage.fraastream.stream.FraaStreamDataUnit;
 
 public class StreamingActivity extends AppCompatActivity implements ServiceConnection {
 
     private MetaWearBleService.LocalBinder serviceBinder;
-
-    private static final String server_url = "http://192.168.1.128:8080/fraastreamserver/webapi/";
 
     public static final String TAG = "MetaWear";
     private MetaWearBoard mwBoard;
@@ -98,12 +83,6 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
     // index for data being read from device
     private Integer index;
 
-    /**
-     * ATTENTION: This was auto-generated to implement the App Indexing API.
-     * See https://g.co/AppIndexing/AndroidStudio for more information.
-     */
-    private GoogleApiClient client;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -124,9 +103,6 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         // from scanner
         btDevice = getIntent().getParcelableExtra(EXTRA_BT_DEVICE);
         getApplicationContext().bindService(new Intent(this, MetaWearBleService.class), this, BIND_AUTO_CREATE);
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
     }
 
     @Override
@@ -175,8 +151,6 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                                     CartesianFloat axes = message.getData(CartesianFloat.class);
                                     //Log.i(TAG, axes.toString());
 
-                                    //sendToServer(axes);
-
                                     FraaStreamDataUnit unit = new FraaStreamDataUnit();
                                     unit.setIndex(index);
                                     unit.setX(axes.x());
@@ -193,78 +167,6 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
 
                             });
                         }
-
-                        /**
-                         * TODO's:
-                         * - cleanup, in particular headers probably not necesary, improve helper class
-                         * - get execution index from server (and after async task reading from db, split this method in 2)
-                         *
-                         * @param axes
-                         */
-                        private void sendToServer(CartesianFloat axes) {
-                            // Instantiate the RequestQueue.
-                            RequestQueue queue = Volley.newRequestQueue(StreamingActivity.this);
-                            String url = server_url + "data";
-
-                                    /*
-                                    // Request a string response from the provided URL.
-                                    StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
-                                            new Response.Listener<String>() {
-                                                @Override
-                                                public void onResponse(String response) {
-                                                    // Display the first 500 characters of the response string.
-                                                    //Log.i(TAG, "Response is: "+ response.substring(0,500));
-                                                    Log.i(TAG, "Response is: "+ response.substring(0,3));
-                                                }
-                                            }, new Response.ErrorListener() {
-                                        @Override
-                                        public void onErrorResponse(VolleyError error) {
-                                            Log.i(TAG, "That didn't work!");
-                                        }
-                                    });
-                                    // Add the request to the RequestQueue.
-                                    queue.add(stringRequest);
-                                    */
-                            FraaStreamDataUnit unit = new FraaStreamDataUnit();
-                            unit.setIndex(index);
-                            unit.setX(axes.x());
-                            unit.setY(axes.y());
-                            unit.setZ(axes.z());
-                            index++;
-
-                            FraaStreamData data = new FraaStreamData();
-                            data.setHeaderId(BigInteger.TEN);   // TODO get the header id from the server !!
-                            data.addDataUnit(unit);
-
-
-                            Map<String, String> headers = new HashMap<>();
-                            headers.put("content-type", "application/json");
-                            headers.put("content-length", "42");
-                            headers.put("accept", "text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2");
-                            headers.put("connection", "keep alive");
-                            headers.put("host", "192.168.1.130:8080");
-                            // TODO headers
-
-                            GsonRequest postRequest = new GsonRequest(Request.Method.POST, url, data, null,
-                                    new Response.Listener<String>() {
-                                        @Override
-                                        public void onResponse(String response) {
-                                            // Display the first 500 characters of the response string.
-                                            //Log.i(TAG, "Response is: "+ response.substring(0,500));
-                                            Log.i(TAG, "Response is: " + response.substring(0, 3));
-                                        }
-                                    }, new Response.ErrorListener() {
-                                @Override
-                                public void onErrorResponse(VolleyError error) {
-                                    Log.i(TAG, "That didn't work!");
-                                    Log.i(TAG, error.toString());
-                                }
-                            });
-                            // Add the request to the RequestQueue.
-                            queue.add(postRequest);
-
-                        }
-
 
                         @Override
                         public void failure(Throwable error) {
@@ -303,40 +205,13 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
     public void onStart() {
         super.onStart();
 
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        client.connect();
-        Action viewAction = Action.newAction(
-                Action.TYPE_VIEW, // TODO: choose an action type.
-                "Streaming Page", // TODO: Define a title for the content shown.
-                // TODO: If you have web page content that matches this app activity's content,
-                // make sure this auto-generated web page URL is correct.
-                // Otherwise, set the URL to null.
-                Uri.parse("http://host/path"),
-                // TODO: Make sure this auto-generated app URL is correct.
-                Uri.parse("android-app://tech.sisifospage.fraastream/http/host/path")
-        );
-        AppIndex.AppIndexApi.start(client, viewAction);
     }
 
     @Override
     public void onStop() {
         super.onStop();
 
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        Action viewAction = Action.newAction(
-                Action.TYPE_VIEW, // TODO: choose an action type.
-                "Streaming Page", // TODO: Define a title for the content shown.
-                // TODO: If you have web page content that matches this app activity's content,
-                // make sure this auto-generated web page URL is correct.
-                // Otherwise, set the URL to null.
-                Uri.parse("http://host/path"),
-                // TODO: Make sure this auto-generated app URL is correct.
-                Uri.parse("android-app://tech.sisifospage.fraastream/http/host/path")
-        );
-        AppIndex.AppIndexApi.end(client, viewAction);
-        client.disconnect();
+        // TODO backgroud process fro UpstreamService
     }
 }
 

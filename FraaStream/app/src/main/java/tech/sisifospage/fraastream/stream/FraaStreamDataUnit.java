@@ -1,4 +1,4 @@
-package tech.sisifospage.fraastream;
+package tech.sisifospage.fraastream.stream;
 
 import java.math.BigInteger;
 

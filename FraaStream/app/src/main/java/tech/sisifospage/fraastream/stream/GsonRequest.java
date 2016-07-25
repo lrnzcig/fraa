@@ -1,18 +1,18 @@
-package tech.sisifospage.fraastream;
+package tech.sisifospage.fraastream.stream;
 
 import android.util.Log;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.NetworkResponse;
-import com.android.volley.ParseError;
 import com.android.volley.Request;
 import com.android.volley.Response;
 import com.android.volley.toolbox.HttpHeaderParser;
 import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
+
+import tech.sisifospage.fraastream.StreamingActivity;
 
 /**
  * Created by lorenzorubio on 29/5/16.
