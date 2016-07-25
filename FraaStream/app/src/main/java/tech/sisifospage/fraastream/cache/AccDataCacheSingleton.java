@@ -2,13 +2,15 @@ package tech.sisifospage.fraastream.cache;
 
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
-import tech.sisifospage.fraastream.FraaStreamDataUnit;
+import tech.sisifospage.fraastream.stream.FraaStreamDataUnit;
 import tech.sisifospage.fraastream.StreamingActivity;
 import tech.sisifospage.fraastream.bbdd.AccDataContract;
 import tech.sisifospage.fraastream.bbdd.FraaDbHelper;
+import tech.sisifospage.fraastream.stream.UpstreamService;
 
 /**
  * Created by lorenzorubio on 17/7/16.
@@ -49,13 +51,18 @@ public class AccDataCacheSingleton {
 
     // this constructor is only initialized when calling from activity
     public void init(Context context, int headerId) {
-        this.context = context.getApplicationContext();    // TODO alternative for background task?
+        this.context = context.getApplicationContext();    // TODO review
+
+        // init buffer
         this.headerId = headerId;
         bufferOf2 = new Buffer[2];
         bufferPointer = 0;
         unitsPointer = 0;
         bufferBackupPending = null;
         bufferOf2[bufferPointer] = new Buffer();
+
+        // service for uploading to server
+        context.startService(new Intent(context, UpstreamService.class));
     }
 
     public synchronized void add(FraaStreamDataUnit unit) {

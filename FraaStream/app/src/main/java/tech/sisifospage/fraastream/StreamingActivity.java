@@ -211,7 +211,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
     public void onStop() {
         super.onStop();
 
-        // TODO backgroud process fro UpstreamService
+        // TODO backgroud process for UpstreamService
     }
 }
 
