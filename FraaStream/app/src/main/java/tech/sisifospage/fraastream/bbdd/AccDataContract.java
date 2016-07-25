@@ -15,6 +15,7 @@ public class AccDataContract {
     public static abstract class AccDataEntry implements BaseColumns {
         public static final String TABLE_NAME = "acc_data";
         public static final String COLUMN_NAME_HEADER_ID = "header_id";
+        public static final String COLUMN_NAME_INDEX = "acc_index";
         public static final String COLUMN_NAME_X = "x";
         public static final String COLUMN_NAME_Y = "y";
         public static final String COLUMN_NAME_Z = "z";
@@ -23,7 +24,8 @@ public class AccDataContract {
     public static final String SQL_CREATE_ENTRIES =
             "CREATE TABLE " + AccDataEntry.TABLE_NAME + " (" +
                     AccDataEntry._ID + " INTEGER PRIMARY KEY" +
-                    BaseContract.COMMA_SEP + AccDataEntry.COLUMN_NAME_HEADER_ID + BaseContract.INTEGER_TYPE  +
+                    BaseContract.COMMA_SEP + AccDataEntry.COLUMN_NAME_HEADER_ID + BaseContract.INTEGER_TYPE +
+                    BaseContract.COMMA_SEP + AccDataEntry.COLUMN_NAME_INDEX + BaseContract.INTEGER_TYPE +
                     BaseContract.COMMA_SEP + AccDataEntry.COLUMN_NAME_X + BaseContract.REAL_TYPE +
                     BaseContract.COMMA_SEP + AccDataEntry.COLUMN_NAME_Y + BaseContract.REAL_TYPE +
                     BaseContract.COMMA_SEP + AccDataEntry.COLUMN_NAME_Z + BaseContract.REAL_TYPE +

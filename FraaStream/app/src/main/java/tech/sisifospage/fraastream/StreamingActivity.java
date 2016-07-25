@@ -70,9 +70,6 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
     public static final String EXTRA_BT_DEVICE = "tech.sisifospage.fraastream.EXTRA_BT_DEVICE";
     private BluetoothDevice btDevice;
 
-    // insert optimization
-    private SQLiteDatabase db;
-
     // handler for connecting to the board
     private final MetaWearBoard.ConnectionStateHandler stateHandler = new MetaWearBoard.ConnectionStateHandler() {
         @Override
@@ -94,8 +91,13 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         }
     };
 
-    // index for data being sent to device
+
+    // cache for keeping the data
+    private AccDataCacheSingleton cache;
+
+    // index for data being read from device
     private Integer index;
+
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -149,17 +151,17 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
             e.printStackTrace();
         }
         accel_switch = (Switch) findViewById(R.id.accel_switch);
+
+        // TODO get header_id first
+        cache = AccDataCacheSingleton.getInstance();
+        cache.init(this, 11); // TODO header id
+
         accel_switch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 Log.i("Switch State=", "" + isChecked);
                 if (isChecked) {
                     accelModule.setOutputDataRate(ACC_FREQ);
                     accelModule.setAxisSamplingRange(ACC_RANGE);
-
-                    // open ddbb connection only once
-                    FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?
-                    db = fraaDbHelper.getWritableDatabase();
-                    db.beginTransaction();
 
                     // streaming
                     accelModule.routeData()
@@ -174,11 +176,9 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                                     //Log.i(TAG, axes.toString());
 
                                     //sendToServer(axes);
-                                    //insertIntoDatabase(axes, 10, db);
-                                    AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
 
                                     FraaStreamDataUnit unit = new FraaStreamDataUnit();
-                                    unit.setIndex(BigInteger.valueOf(index));
+                                    unit.setIndex(index);
                                     unit.setX(axes.x());
                                     unit.setY(axes.y());
                                     unit.setZ(axes.z());
@@ -226,7 +226,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                                     queue.add(stringRequest);
                                     */
                             FraaStreamDataUnit unit = new FraaStreamDataUnit();
-                            unit.setIndex(BigInteger.valueOf(index));
+                            unit.setIndex(index);
                             unit.setX(axes.x());
                             unit.setY(axes.y());
                             unit.setZ(axes.z());
@@ -265,31 +265,6 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
 
                         }
 
-                        // TODO move to helper ??
-                        // careful with transactions
-                        private void insertIntoDatabase(CartesianFloat axes, Integer headerId, SQLiteDatabase db) {
-                            ContentValues values = new ContentValues();
-                            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID, headerId);
-                            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_X, axes.x());
-                            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Y, axes.y());
-                            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Z, axes.z());
-
-                            try {
-                                long newRowId = db.insert(AccDataContract.AccDataEntry.TABLE_NAME,
-                                        null,
-                                        values);
-                                if (newRowId % 1000 == 0) {
-                                    // this may cause data to be lost, while connection is reopened
-                                    String message = "New row id inserted " + newRowId;
-                                    Log.i(TAG, message);
-                                    db.setTransactionSuccessful();
-                                    db.endTransaction();
-                                    db.beginTransaction();
-                                }
-                            } catch (Exception e) {
-                                Log.i(TAG, "exception");
-                            }
-                        }
 
                         @Override
                         public void failure(Throwable error) {
@@ -304,11 +279,9 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                     accelModule.disableAxisSampling(); //Likewise, you must first disable axis sampling before stopping
                     accelModule.stop();
 
-                    db.endTransaction();
-                    // select count
+                    // TODO select count => move to Singleton
                     FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?
                     SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
-
                     long count = DatabaseUtils.queryNumEntries(db, AccDataContract.AccDataEntry.TABLE_NAME,
                             AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=?", new String[]{"10"});
 

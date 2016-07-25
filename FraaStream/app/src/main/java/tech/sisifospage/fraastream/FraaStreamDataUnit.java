@@ -7,7 +7,7 @@ import java.math.BigInteger;
  */
 public class FraaStreamDataUnit {
 
-    private BigInteger index;
+    private Integer index;
     private Float x;
     private Float y;
     private Float z;
@@ -16,11 +16,11 @@ public class FraaStreamDataUnit {
         super();
     }
 
-    public BigInteger getIndex() {
+    public Integer getIndex() {
         return index;
     }
 
-    public void setIndex(final BigInteger index) {
+    public void setIndex(final Integer index) {
         this.index = index;
     }
 
