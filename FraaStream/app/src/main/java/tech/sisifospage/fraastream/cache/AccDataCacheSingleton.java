@@ -11,6 +11,7 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.concurrent.Semaphore;
 
 import tech.sisifospage.fraastream.bbdd.HeaderContract;
 import tech.sisifospage.fraastream.stream.FraaStreamData;
@@ -26,6 +27,8 @@ import tech.sisifospage.fraastream.stream.UpstreamService;
 public class AccDataCacheSingleton {
 
     private static AccDataCacheSingleton accDataCacheSingleton;
+
+    private final Semaphore available = new Semaphore(1);
 
     private static int LENGTH_OF_BUFFER = 500;
     public static int NULL_SERVER_HEADER_ID = -1;
@@ -82,8 +85,17 @@ public class AccDataCacheSingleton {
 
     }
 
+    private FraaDbHelper getDbHelperIfAvailable() {
+        available.acquireUninterruptibly();
+        return new FraaDbHelper(this.context);
+    }
+
+    private void release() {
+        available.release();
+    }
+
     private void setNewHeaderId(String macAddress) {
-        FraaDbHelper fraaDbHelper = new FraaDbHelper(this.context);
+        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         createdAt = System.currentTimeMillis();
@@ -96,6 +108,7 @@ public class AccDataCacheSingleton {
         setHeaderId((int) res);
 
         db.close();
+        release();
 
 
         /*
@@ -136,12 +149,13 @@ public class AccDataCacheSingleton {
 
 
     public void setServerHeaderId(int headerId, int serverHeaderId) {
-        FraaDbHelper fraaDbHelper = new FraaDbHelper(this.context);
+        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(HeaderContract.HeaderEntry.COLUMN_NAME_SERVER_HEADER_ID, serverHeaderId);
         db.update(HeaderContract.HeaderEntry.TABLE_NAME, values, HeaderContract.HeaderEntry._ID + "=" + headerId , null);
         db.close();
+        release();
     }
 
 
@@ -168,7 +182,7 @@ public class AccDataCacheSingleton {
 
     // careful with transactions
     private void insertIntoDatabase() {
-        FraaDbHelper fraaDbHelper = new FraaDbHelper(this.context);
+        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
         // open ddbb connection only once
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         //db.beginTransaction();
@@ -193,12 +207,13 @@ public class AccDataCacheSingleton {
         bufferBackupPending = null;
         //Log.d(StreamingActivity.TAG, "transaction closed");
         db.close();
+        release();
     }
 
 
     public Collection<FraaStreamData> selectRowsHeaderNotEqualto(int headerId) {
         Log.d(StreamingActivity.TAG, "Looking for rows with id different to: " + headerId);
-        FraaDbHelper fraaDbHelper = new FraaDbHelper(this.context);
+        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
         SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
         Cursor c = db.rawQuery("SELECT * FROM " + AccDataContract.AccDataEntry.TABLE_NAME
                 + " WHERE " + AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + " != ?"
@@ -218,7 +233,7 @@ public class AccDataCacheSingleton {
                         Log.d(StreamingActivity.TAG, "Row header id: " + rowHeaderId);
                         currentHeaderId = rowHeaderId;
                         currentData = new FraaStreamData();
-                        currentData.setHeaderId(getServerHeaderId(rowHeaderId));
+                        currentData.setHeaderId(getServerHeaderId(rowHeaderId, fraaDbHelper));
                         output.add(currentData);
                     }
                     FraaStreamDataUnit unit = new FraaStreamDataUnit();
@@ -231,12 +246,12 @@ public class AccDataCacheSingleton {
             }
         }
         db.close();
+        release();
         return output;
     }
 
-    private int getServerHeaderId(int headerId) {
+    private int getServerHeaderId(int headerId, FraaDbHelper fraaDbHelper) {
         Integer output = null;
-        FraaDbHelper fraaDbHelper = new FraaDbHelper(this.context);
         SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
         Cursor c = db.rawQuery("SELECT * FROM " + HeaderContract.HeaderEntry.TABLE_NAME
                 + " WHERE " + HeaderContract.HeaderEntry._ID + " = ? ",
@@ -250,28 +265,32 @@ public class AccDataCacheSingleton {
             Log.d(StreamingActivity.TAG, "Header Id " + headerId + " has no server header id yet");
         }
         db.close();
+        release();
         return output;
     }
 
 
     public void removeFromDatabase(FraaStreamData data) {
-        FraaDbHelper fraaDbHelper = new FraaDbHelper(this.context);
+        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         //db.beginTransaction();
         for (FraaStreamDataUnit unit : data.getDataUnits()) {
+            // TODO result count is 0! try with _id in (list)
             int count = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
                     AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=? AND " + AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + "=?",
                     new String[] {String.valueOf(data.getHeaderId()), String.valueOf(unit.getIndex())} );
             //Log.d(StreamingActivity.TAG, "Delete (" + String.valueOf(data.getHeaderId()) + ", " + String.valueOf(unit.getIndex()) +") result:" + count);
         }
-        db.rawQuery("DELETE FROM " + AccDataContract.AccDataEntry.TABLE_NAME + " WHERE header_id=156",
-                null );
-        Log.d(StreamingActivity.TAG, "Delete (" + String.valueOf(data.getHeaderId()) + ") result:");
+        //db.rawQuery("DELETE FROM " + AccDataContract.AccDataEntry.TABLE_NAME + " WHERE header_id=156",
+        //        null );
+        //Log.d(StreamingActivity.TAG, "Delete (" + String.valueOf(data.getHeaderId()) + ") result:");
         //int count2 = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
         //        null,
         //        null);
         //Log.d(StreamingActivity.TAG, "Delete (all) result:" + count2);
         //db.endTransaction();
+        db.close();
+        release();
     }
 
 
