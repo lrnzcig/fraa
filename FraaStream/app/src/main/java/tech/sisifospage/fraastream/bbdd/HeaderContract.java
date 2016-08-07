@@ -17,7 +17,8 @@ public class HeaderContract {
         //public static final String COLUMN_NAME_ID = "id";
         public static final String COLUMN_NAME_CREATED_AT = "created_at";
         public static final String COLUMN_NAME_MAC_ADDRESS = "mac_address";
-        public static final String COLUMN_NAME_LABEL = "label";
+        public static final String COLUMN_NAME_LABEL = "label"; // user defined label
+        public static final String COLUMN_NAME_SERVER_HEADER_ID = "server_header_id";
     }
 
     public static final String SQL_CREATE_ENTRIES =
@@ -26,6 +27,7 @@ public class HeaderContract {
                     BaseContract.COMMA_SEP + HeaderEntry.COLUMN_NAME_CREATED_AT + BaseContract.DATE_TYPE +
                     BaseContract.COMMA_SEP + HeaderEntry.COLUMN_NAME_MAC_ADDRESS + BaseContract.TEXT_TYPE +
                     BaseContract.COMMA_SEP + HeaderEntry.COLUMN_NAME_LABEL + BaseContract.TEXT_TYPE +
+                    BaseContract.COMMA_SEP + HeaderEntry.COLUMN_NAME_SERVER_HEADER_ID + BaseContract.INTEGER_TYPE +
             " )";
 
     public static final String SQL_DELETE_ENTRIES =

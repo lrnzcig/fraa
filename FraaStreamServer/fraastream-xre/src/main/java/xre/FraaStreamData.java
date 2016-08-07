@@ -2,11 +2,13 @@ package xre;
 
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.UUID;
 
 public class FraaStreamData {
 
 	private BigInteger headerId;
 	private FraaStreamDataUnit[] dataUnits;
+	private UUID requestId;
 
 	public FraaStreamData() {
 		super();
@@ -36,6 +38,14 @@ public class FraaStreamData {
 			this.dataUnits = Arrays.copyOf(this.dataUnits, newLength);
 		}
 		this.dataUnits[this.dataUnits.length - 1] = dataUnit;
+	}
+
+	public UUID getRequestId() {
+		return requestId;
+	}
+
+	public void setRequestId(final UUID requestId) {
+		this.requestId = requestId;
 	}
 	
 }

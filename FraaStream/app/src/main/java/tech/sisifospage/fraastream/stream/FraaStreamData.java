@@ -2,24 +2,26 @@ package tech.sisifospage.fraastream.stream;
 
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.UUID;
 
 /**
  * Created by lorenzorubio on 19/6/16.
  */
 public class FraaStreamData {
 
-    private BigInteger headerId;
+    private Integer headerId;
     private FraaStreamDataUnit[] dataUnits;
+    private UUID requestId;
 
     public FraaStreamData() {
         super();
     }
 
-    public BigInteger getHeaderId() {
+    public Integer getHeaderId() {
         return headerId;
     }
 
-    public void setHeaderId(final BigInteger headerId) {
+    public void setHeaderId(final Integer headerId) {
         this.headerId = headerId;
     }
 
@@ -40,4 +42,13 @@ public class FraaStreamData {
         }
         this.dataUnits[this.dataUnits.length - 1] = dataUnit;
     }
+
+    public UUID getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(final UUID requestId) {
+        this.requestId = requestId;
+    }
+
 }

@@ -17,14 +17,13 @@ import tech.sisifospage.fraastream.StreamingActivity;
 /**
  * Created by lorenzorubio on 29/5/16.
  * https://developer.android.com/training/volley/request-custom.html
- * extiende la clase de la respuesta !
- * hacer la entrada genérica
  */
-public class GsonRequest extends Request<String> {
+public class GsonRequest<T, U> extends Request<String> {
     private final Gson gson = new Gson();
     private final Map<String, String> headers;
-    private final Response.Listener<String> listener;
-    private final FraaStreamData params;
+    private final Response.Listener<U> listener;
+    private final T params;
+    private final Class responseClass;
 
     /**
      * Make a GET request and return a parsed object from JSON.
@@ -34,12 +33,14 @@ public class GsonRequest extends Request<String> {
      * @param params Input object
      * @param headers Map of request headers
      */
-    public GsonRequest(int method, String url, FraaStreamData params, Map<String, String> headers,
-                       Response.Listener<String> listener, Response.ErrorListener errorListener) {
+    public GsonRequest(int method, String url, T params, Map<String, String> headers,
+                       Response.Listener<U> listener, Response.ErrorListener errorListener,
+                       Class responseClass) {
         super(method, url, errorListener);
         this.params = params;
         this.headers = headers;
         this.listener = listener;
+        this.responseClass = responseClass;
     }
 
     @Override
@@ -51,7 +52,13 @@ public class GsonRequest extends Request<String> {
 
     @Override
     protected void deliverResponse(String response) {
-        listener.onResponse(response);
+        //if (responseClass == String.class) {
+        //    listener.onResponse((U) response);
+        //} else {
+        //Log.d(StreamingActivity.TAG, "fromJson");
+            U r = (U) gson.fromJson(response, responseClass);
+            listener.onResponse(r);
+        //}
     }
 
     @Override

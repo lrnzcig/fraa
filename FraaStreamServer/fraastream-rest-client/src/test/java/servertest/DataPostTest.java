@@ -2,6 +2,7 @@ package servertest;
 
 import java.math.BigInteger;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.Entity;
@@ -17,28 +18,10 @@ import xre.FraaStreamData;
 import xre.FraaStreamDataUnit;
 import xre.FraaStreamHeader;
 
-public class DataUnitPostTest {
-
-
-	/*
-	@Test
-	public void postDataUnit() {
-		Client client = ClientUtils.getClientNoAuthenticationButJackson();
-
-		FraaStreamDataUnit unit = new FraaStreamDataUnit();
-		unit.setIndex(1);
-		unit.setX((float) 0.209);
-		unit.setY((float) 0.085);
-		unit.setZ((float) 0.43);
-		Response response = client.target("http://localhost:8080/fraastreamserver/webapi").path("data").request()
-				.post(Entity.entity(unit, MediaType.APPLICATION_JSON));
-
-		Assert.assertEquals(200, response.getStatus());
-	}
-	*/
+public class DataPostTest {
 
 	@Test
-	public void postDataUnitGson() {
+	public void postDataGson() {
 		Client client = ClientUtils.getClientNoAuthenticationButJackson();
 
 		// 1. post new header
@@ -59,6 +42,8 @@ public class DataUnitPostTest {
 		// 2. post data associated to header id
 		FraaStreamData data = new FraaStreamData();
 		data.setHeaderId(newHeader.getId());
+		UUID requestId = UUID.randomUUID();
+		data.setRequestId(requestId);
 		FraaStreamDataUnit unit = new FraaStreamDataUnit();
 		unit.setIndex(BigInteger.valueOf(1));
 		unit.setX((float) 0.209);
@@ -76,6 +61,8 @@ public class DataUnitPostTest {
 				.post(Entity.text(obj2));
 
 		Assert.assertEquals(200, response2.getStatus());
+		UUID headerResponse = response2.readEntity(UUID.class);
+		Assert.assertEquals(data.getRequestId(), headerResponse);
 	}
 
 }

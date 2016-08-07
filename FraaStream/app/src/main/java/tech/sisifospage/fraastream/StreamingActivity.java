@@ -128,9 +128,8 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         }
         accel_switch = (Switch) findViewById(R.id.accel_switch);
 
-        // TODO get header_id first
         cache = AccDataCacheSingleton.getInstance();
-        cache.init(this, 11); // TODO header id
+        cache.init(this, mwBoard.getMacAddress());
 
         accel_switch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -210,7 +209,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
     @Override
     public void onStop() {
         super.onStop();
-
+        Log.d(TAG, "StreamingActivity onStop");
         // TODO backgroud process for UpstreamService
     }
 }
