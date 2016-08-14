@@ -4,14 +4,12 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
-import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.concurrent.Semaphore;
 
 import tech.sisifospage.fraastream.bbdd.HeaderContract;
@@ -85,7 +83,7 @@ public class AccDataCacheSingleton {
 
     }
 
-    private FraaDbHelper getDbHelperIfAvailable() {
+    private FraaDbHelper getDbHelperWhenAvailable() {
         available.acquireUninterruptibly();
         return new FraaDbHelper(this.context);
     }
@@ -95,7 +93,7 @@ public class AccDataCacheSingleton {
     }
 
     private void setNewHeaderId() {
-        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         createdAt = System.currentTimeMillis();
@@ -110,46 +108,12 @@ public class AccDataCacheSingleton {
         db.close();
         release();
 
-
-        /*
-        // TODO remove this checks
-        db = fraaDbHelper.getReadableDatabase();
-        Cursor cursor = db.query(HeaderContract.HeaderEntry.TABLE_NAME, new String[]{"MAX(" + HeaderContract.HeaderEntry._ID + ") as max"},
-                null, null, null, null, null);
-        cursor.moveToFirst();
-        Log.d(StreamingActivity.TAG, "Cursor move to 1st");
-        int index = cursor.getColumnIndex("max");
-        Log.d(StreamingActivity.TAG, "Max id: " + cursor.getString(index));
-        db = fraaDbHelper.getReadableDatabase();
-        long count = DatabaseUtils.queryNumEntries(db, HeaderContract.HeaderEntry.TABLE_NAME,
-                null, null);
-        Log.i(StreamingActivity.TAG, "Total number of rows inserted " + count);
-        */
-
-        /*
-        // TODO remove this check
-        values = new ContentValues();
-        values.put(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID, getHeaderId());
-        values.put(AccDataContract.AccDataEntry.COLUMN_NAME_INDEX, 1);
-        values.put(AccDataContract.AccDataEntry.COLUMN_NAME_X, 1);
-        values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Y, 1);
-        values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Z, 1);
-        db.insert(AccDataContract.AccDataEntry.TABLE_NAME,
-                null,
-                values);
-        db = fraaDbHelper.getReadableDatabase();
-        count = DatabaseUtils.queryNumEntries(db, AccDataContract.AccDataEntry.TABLE_NAME,
-                AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=?", new String[]{String.valueOf(res)});
-        String message = "Total number of rows inserted " + count;
-        Log.i(StreamingActivity.TAG, message);
-        */
-
         return;
     }
 
 
     public void setServerHeaderId(int headerId, int serverHeaderId) {
-        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(HeaderContract.HeaderEntry.COLUMN_NAME_SERVER_HEADER_ID, serverHeaderId);
@@ -183,7 +147,7 @@ public class AccDataCacheSingleton {
     private class InsertIntoDatabaseTask extends AsyncTask<String, Integer, Integer> {
         @Override
         protected Integer doInBackground(String... params) {
-            FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
+            FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
             // open ddbb connection only once
             SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
             //db.beginTransaction();
@@ -216,7 +180,7 @@ public class AccDataCacheSingleton {
 
     public Collection<FraaStreamData> selectRowsHeaderNotEqualto(int headerId) {
         Log.d(StreamingActivity.TAG, "Looking for rows with id different to: " + headerId);
-        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
         Cursor c = db.rawQuery("SELECT * FROM " + AccDataContract.AccDataEntry.TABLE_NAME
                 + " WHERE " + AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + " != ?"
@@ -274,7 +238,7 @@ public class AccDataCacheSingleton {
 
 
     public void removeFromDatabase(FraaStreamData data) {
-        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         //db.beginTransaction();
         for (FraaStreamDataUnit unit : data.getDataUnits()) {
