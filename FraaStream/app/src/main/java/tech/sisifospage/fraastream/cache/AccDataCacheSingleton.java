@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.database.DatabaseUtils;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.AsyncTask;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -164,7 +165,7 @@ public class AccDataCacheSingleton {
         if (unitsPointer == LENGTH_OF_BUFFER) {
             Log.d(StreamingActivity.TAG, "Recreating singleton buffer");
             toggleBuffer();
-            insertIntoDatabase();
+            new InsertIntoDatabaseTask().execute();
         }
     }
 
@@ -180,34 +181,37 @@ public class AccDataCacheSingleton {
         //Log.d(StreamingActivity.TAG, "end toggle");
     }
 
-    // careful with transactions
-    private void insertIntoDatabase() {
-        FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
-        // open ddbb connection only once
-        SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
-        //db.beginTransaction();
-        //Log.d(StreamingActivity.TAG, "transaction opened");
-        Log.d(StreamingActivity.TAG, "buffer to copy " + bufferBackupPending);
-        Log.d(StreamingActivity.TAG, "header id:" + getHeaderId());
+    private class InsertIntoDatabaseTask extends AsyncTask<String, Integer, Integer> {
+        @Override
+        protected Integer doInBackground(String... params) {
+            FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
+            // open ddbb connection only once
+            SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
+            //db.beginTransaction();
+            //Log.d(StreamingActivity.TAG, "transaction opened");
+            Log.d(StreamingActivity.TAG, "buffer to copy " + bufferBackupPending);
+            Log.d(StreamingActivity.TAG, "header id:" + getHeaderId());
 
-        for (FraaStreamDataUnit unit : bufferOf2[bufferBackupPending].units) {
-            //Log.d(StreamingActivity.TAG, "count:" + count++);
-            ContentValues values = new ContentValues();
-            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID, getHeaderId());
-            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_INDEX, unit.getIndex());
-            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_X, unit.getX());
-            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Y, unit.getY());
-            values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Z, unit.getZ());
-            db.insert(AccDataContract.AccDataEntry.TABLE_NAME,
-                    null,
-                    values);
+            for (FraaStreamDataUnit unit : bufferOf2[bufferBackupPending].units) {
+                //Log.d(StreamingActivity.TAG, "count:" + count++);
+                ContentValues values = new ContentValues();
+                values.put(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID, getHeaderId());
+                values.put(AccDataContract.AccDataEntry.COLUMN_NAME_INDEX, unit.getIndex());
+                values.put(AccDataContract.AccDataEntry.COLUMN_NAME_X, unit.getX());
+                values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Y, unit.getY());
+                values.put(AccDataContract.AccDataEntry.COLUMN_NAME_Z, unit.getZ());
+                db.insert(AccDataContract.AccDataEntry.TABLE_NAME,
+                        null,
+                        values);
+            }
+
+            //db.endTransaction();
+            bufferBackupPending = null;
+            Log.d(StreamingActivity.TAG, "copy to SQLite ok");
+            db.close();
+            release();
+            return 1;
         }
-
-        //db.endTransaction();
-        bufferBackupPending = null;
-        //Log.d(StreamingActivity.TAG, "transaction closed");
-        db.close();
-        release();
     }
 
 
