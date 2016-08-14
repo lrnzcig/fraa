@@ -66,14 +66,14 @@ public class UpstreamService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         int out = super.onStartCommand(intent, flags, startId);
         Log.d(StreamingActivity.TAG, "onStartCommand");
-        Bundle extras = intent.getExtras();
-        this.headerId = (int) extras.get(SQLITE_HEADER_ID);
+        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+        this.headerId = cache.getHeaderId();
         Log.d(StreamingActivity.TAG, "headerId:" + this.headerId);
-        this.macAddress = (String) extras.get(SQLITE_HEADER_MAC_ADDR);
+        this.macAddress = cache.getMacAddress();
         Log.d(StreamingActivity.TAG, "macAddress:" + this.macAddress);
-        this.createdAt = (long) extras.get(SQLITE_HEADER_CREATED_AT);
+        this.createdAt = cache.getCreatedAt();
         Log.d(StreamingActivity.TAG, "createdAt:" + this.createdAt);
-        this.label = (String) extras.get(SQLITE_HEADER_LABEL);
+        this.label = cache.getHeaderLabel();
         Log.d(StreamingActivity.TAG, "label:" + this.label);
 
         // get server side header id and update SQLite

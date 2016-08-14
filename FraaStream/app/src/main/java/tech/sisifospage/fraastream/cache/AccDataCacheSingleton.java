@@ -51,6 +51,8 @@ public class AccDataCacheSingleton {
 
     private int headerId;
     private long createdAt;
+    private String macAddress;
+    private String headerLabel; //TODO
 
     public static AccDataCacheSingleton getInstance() {
         if (accDataCacheSingleton == null) {
@@ -65,6 +67,8 @@ public class AccDataCacheSingleton {
         this.context = context;    // TODO review, expects caller passes this.getBaseContext()
         //this.fraaDbHelper = new FraaDbHelper(this.context);
 
+        setMacAddress(macAddress);
+
         // init buffer
         bufferOf2 = new Buffer[2];
         bufferPointer = 0;
@@ -73,15 +77,10 @@ public class AccDataCacheSingleton {
         bufferOf2[bufferPointer] = new Buffer();
 
         // set next value of headerId for SQLite
-        setNewHeaderId(macAddress);
+        setNewHeaderId();
 
         // service for uploading to server
         Intent serviceIntent = new Intent(context, UpstreamService.class);
-        serviceIntent.putExtra(UpstreamService.SQLITE_HEADER_ID, getHeaderId());
-        serviceIntent.putExtra(UpstreamService.SQLITE_HEADER_MAC_ADDR, macAddress);
-        serviceIntent.putExtra(UpstreamService.SQLITE_HEADER_CREATED_AT, createdAt);
-        // TODO label should be passed to UpstreamService, when set
-        serviceIntent.putExtra(UpstreamService.SQLITE_HEADER_LABEL, "");
         context.startService(serviceIntent);
 
     }
@@ -95,7 +94,7 @@ public class AccDataCacheSingleton {
         available.release();
     }
 
-    private void setNewHeaderId(String macAddress) {
+    private void setNewHeaderId() {
         FraaDbHelper fraaDbHelper = getDbHelperIfAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -304,5 +303,29 @@ public class AccDataCacheSingleton {
 
     public void setHeaderId(int headerId) {
         this.headerId = headerId;
+    }
+
+    public long getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(long createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getMacAddress() {
+        return macAddress;
+    }
+
+    public void setMacAddress(String macAddress) {
+        this.macAddress = macAddress;
+    }
+
+    public String getHeaderLabel() {
+        return headerLabel;
+    }
+
+    public void setHeaderLabel(String headerLabel) {
+        this.headerLabel = headerLabel;
     }
 }
