@@ -176,9 +176,11 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
 
                     accelModule.enableAxisSampling(); //You must enable axis sampling before you can start
                     accelModule.start();
+                    cache.setStarted(true);
                 } else {
                     accelModule.disableAxisSampling(); //Likewise, you must first disable axis sampling before stopping
                     accelModule.stop();
+                    cache.setStarted(false);
 
                     // TODO select count => move to Singleton
                     FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?

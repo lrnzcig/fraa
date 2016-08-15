@@ -2,8 +2,6 @@ package tech.sisifospage.fraastream.stream;
 
 import android.app.Service;
 import android.content.Intent;
-import android.database.Cursor;
-import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
 
@@ -13,13 +11,11 @@ import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.Volley;
-import com.mbientlab.metawear.data.CartesianFloat;
 
-import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -32,25 +28,21 @@ import tech.sisifospage.fraastream.cache.AccDataCacheSingleton;
 
 public class UpstreamService extends Service {
 
-    // extra parameters for init
-    public static final String SQLITE_HEADER_ID = "SQLITE_HEADER_ID";
-    public static final String SQLITE_HEADER_MAC_ADDR = "SQLITE_HEADER_MAC_ADDR";
-    public static final String SQLITE_HEADER_CREATED_AT = "SQLITE_HEADER_CREATED_AT";
-    public static final String SQLITE_HEADER_LABEL = "SQLITE_HEADER_LABEL";
-
-    private int headerId;
-    private String macAddress;
-    private long createdAt;
-    private String label;
+    private final int MAX_NUMBER_DATA_UNITS_UPSTREAM = 500;
+    private final int MAX_NUMBER_ATTEMPTS_PER_REQUEST = 3;
 
     private int serverHeaderId;
 
     private Map<UUID, FraaStreamData> pendingRequests = new HashMap<>();
+    private Map<UUID, Integer> pendingAttempts = new HashMap<>();
 
     // TODO app property
     private static final String server_url = "http://192.168.1.128:8080/fraastreamserver/webapi/";
 
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private final ScheduledExecutorService dataScheduler = Executors.newScheduledThreadPool(1);
+    private ScheduledFuture<?> dataProcessHandle = null;
+
+    private final ScheduledExecutorService cacheScheduler = Executors.newScheduledThreadPool(1);
 
     public UpstreamService() {
     }
@@ -66,15 +58,6 @@ public class UpstreamService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         int out = super.onStartCommand(intent, flags, startId);
         Log.d(StreamingActivity.TAG, "onStartCommand");
-        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
-        this.headerId = cache.getHeaderId();
-        Log.d(StreamingActivity.TAG, "headerId:" + this.headerId);
-        this.macAddress = cache.getMacAddress();
-        Log.d(StreamingActivity.TAG, "macAddress:" + this.macAddress);
-        this.createdAt = cache.getCreatedAt();
-        Log.d(StreamingActivity.TAG, "createdAt:" + this.createdAt);
-        this.label = cache.getHeaderLabel();
-        Log.d(StreamingActivity.TAG, "label:" + this.label);
 
         // get server side header id and update SQLite
         getHeaderIdFromServer();
@@ -84,6 +67,10 @@ public class UpstreamService extends Service {
 
         // process for sending data periodically
         checkDataEveryInterval();
+
+        // process for checking if the cache has added data
+        checkCacheDataStream();
+
         return out;
     }
 
@@ -93,31 +80,71 @@ public class UpstreamService extends Service {
         Log.d(StreamingActivity.TAG, "onCreate");
     }
 
-    // TODO
     public void checkDataEveryInterval() {
         final Runnable checkData = new Runnable() {
-            public void run() { Log.d(StreamingActivity.TAG, "new beep"); }
-        };
-        // runs every 10 seconds
-        final ScheduledFuture<?> processHandle = scheduler.scheduleAtFixedRate(checkData, 10, 10, TimeUnit.SECONDS);    // TODO maybe schedule instead of AtFixedRate
-        // stop after 1 hour ==> somebody has to stop it!
-        scheduler.schedule(new Runnable() {
             public void run() {
-                Log.d(StreamingActivity.TAG, "cancel beep");
-                processHandle.cancel(true);
+                //Log.d(StreamingActivity.TAG, "new beep");
+                boolean dataSent = false;
+                for (UUID requestId : pendingRequests.keySet()) {
+                    Integer attempts = pendingAttempts.get(requestId);
+                    if (attempts == null) {
+                        attempts = 1;
+                    } else if (attempts == MAX_NUMBER_ATTEMPTS_PER_REQUEST) {
+                        continue;
+                    } else {
+                        attempts++;
+                    }
+                    pendingAttempts.put(requestId, attempts);
+                    FraaStreamData data = pendingRequests.get(requestId);
+                    Log.d(StreamingActivity.TAG, "Sending data for server header id: " + data.getHeaderId()
+                        + ", attempt: " + attempts + " request id: " + requestId);
+                    sendToServer(data);
+                    dataSent = true;
+                    break;
+                }
+                if (! dataSent & ! isStarted()) {
+                    Log.d(StreamingActivity.TAG, "No more upstream requests pending (or too many failed attempts)");
+                    dataProcessHandle.cancel(true);
+                } else {
+                    //Log.d(StreamingActivity.TAG, "end beep");
+                }
             }
-        }, 60 * 3, TimeUnit.SECONDS);
+        };
+        // runs every 60 seconds
+        dataProcessHandle = dataScheduler.scheduleAtFixedRate(checkData, 10, 60, TimeUnit.SECONDS);
     }
 
+    public void checkCacheDataStream() {
+        final Runnable checkData = new Runnable() {
+            public void run() {
+                AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
+                Collection<FraaStreamData> list = convertWithMaxDataSize(obj.selectRowsHeaderEqualTo(getHeaderId()));
+                boolean dataPending = false;
+                for (FraaStreamData data : list) {
+                    if (data.getDataUnits().length == MAX_NUMBER_DATA_UNITS_UPSTREAM) {
+                        addDataToPendingRequests(data);
+                        dataPending = true;
+                    }
+                }
+                if (dataPending && dataProcessHandle.isCancelled()) {
+                    Log.d(StreamingActivity.TAG, "restarting data process");
+                    checkDataEveryInterval();
+                }
+            }
+        };
+        // runs every 2 minutes, never stops
+        // TODO adjust time interval depending on size of buffers & sampling rate
+        cacheScheduler.scheduleAtFixedRate(checkData, 0, 2, TimeUnit.MINUTES);
+    }
 
     private void getHeaderIdFromServer() {
         RequestQueue queue = Volley.newRequestQueue(this);
         String url = server_url + "header";
 
         FraaStreamHeader header = new FraaStreamHeader();
-        header.setMacAddress(macAddress);
-        header.setCreatedAt(new Date(createdAt));
-        header.setLabel(label);
+        header.setMacAddress(getMacAddress());
+        header.setCreatedAt(new Date(getCreatedAt()));
+        header.setLabel(getHeaderLabel());
 
         GsonRequest postRequest = new GsonRequest<FraaStreamHeader, FraaStreamHeader>(Request.Method.POST, url, header, null,
                 new Response.Listener<FraaStreamHeader>() {
@@ -127,7 +154,7 @@ public class UpstreamService extends Service {
                         Log.d(StreamingActivity.TAG, "Response header id: " + response.getId());
                         // update new serverHeaderId
                         AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
-                        obj.setServerHeaderId(headerId, serverHeaderId);
+                        obj.setServerHeaderId(getHeaderId(), serverHeaderId);
                     }
                 }, new Response.ErrorListener() {
             @Override
@@ -143,19 +170,49 @@ public class UpstreamService extends Service {
 
     private void sendAllButCurrentHeaderToServer() {
         AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
-        Log.d(StreamingActivity.TAG, "Looking for rows with id different to: " + headerId);
-        Collection<FraaStreamData> list = obj.selectRowsHeaderNotEqualto(headerId);
-        Log.d(StreamingActivity.TAG, "Sending data from previous runs, size of list: " + list.size());
+        Collection<FraaStreamData> list = convertWithMaxDataSize(obj.selectRowsHeaderNotEqualTo(getHeaderId()));
+        Log.d(StreamingActivity.TAG, "Data from previous runs, size of list: " + list.size());
         for (FraaStreamData data : list) {
-            if (data.getHeaderId() == AccDataCacheSingleton.NULL_SERVER_HEADER_ID) {
-                continue;
-            }
-            UUID requestId = UUID.randomUUID();
-            data.setRequestId(requestId);
-            pendingRequests.put(requestId, data);
-            Log.d(StreamingActivity.TAG, "Sending data for server header id: " + data.getHeaderId());
-            sendToServer(data);
+            addDataToPendingRequests(data);
         }
+    }
+
+    private void addDataToPendingRequests(FraaStreamData data) {
+        UUID requestId = UUID.randomUUID();
+        data.setRequestId(requestId);
+        pendingRequests.put(requestId, data);
+        Log.d(StreamingActivity.TAG, "Added request to be processed: " + requestId);
+    }
+
+    /**
+     * Converts into a list for FraaStreamData taking into account the maximum size of a packet
+     *
+     * @param input
+     * @return
+     */
+    private Collection<FraaStreamData> convertWithMaxDataSize(Map<Integer, Collection<FraaStreamDataUnit>> input) {
+        Collection<FraaStreamData> output = new ArrayList<>();
+        for (Integer headerId : input.keySet()) {
+            Integer serverHeaderId = AccDataCacheSingleton.getInstance().getServerHeaderId(headerId);
+            if (serverHeaderId == AccDataCacheSingleton.NULL_SERVER_HEADER_ID) {
+                Log.w(StreamingActivity.TAG, "Data from headerId: " + headerId + " does not have a server header id");
+                // TODO solve!
+                //continue;
+            }
+            Collection<FraaStreamDataUnit> units = input.get(headerId);
+            int count = 0;
+            FraaStreamData data = null;
+            for (FraaStreamDataUnit unit : units) {
+                if (count == 0 || count == MAX_NUMBER_DATA_UNITS_UPSTREAM) {
+                    data = new FraaStreamData();
+                    data.setHeaderId(serverHeaderId);
+                    output.add(data);
+                }
+                count++;
+                data.addDataUnit(unit);
+            }
+        }
+        return output;
     }
 
     private void sendToServer(FraaStreamData data) {
@@ -169,6 +226,7 @@ public class UpstreamService extends Service {
                         // update new serverHeaderId
                         AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
                         obj.removeFromDatabase(pendingRequests.get(response));
+                        pendingRequests.remove(response);
                         Log.i(StreamingActivity.TAG, "Response id finished removing: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
                     }
                 }, new Response.ErrorListener() {
@@ -187,5 +245,28 @@ public class UpstreamService extends Service {
 
     }
 
+    public long getCreatedAt() {
+        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+        return cache.getCreatedAt();
+    }
 
+    public int getHeaderId() {
+        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+        return cache.getHeaderId();
+    }
+
+    public String getHeaderLabel() {
+        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+        return cache.getHeaderLabel();
+    }
+
+    public String getMacAddress() {
+        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+        return cache.getMacAddress();
+    }
+
+    public boolean isStarted() {
+        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+        return cache.isStarted();
+    }
 }

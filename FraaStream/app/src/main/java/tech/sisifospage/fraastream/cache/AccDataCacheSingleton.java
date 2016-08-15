@@ -10,6 +10,8 @@ import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 import tech.sisifospage.fraastream.bbdd.HeaderContract;
@@ -51,6 +53,7 @@ public class AccDataCacheSingleton {
     private long createdAt;
     private String macAddress;
     private String headerLabel; //TODO
+    private boolean started;
 
     public static AccDataCacheSingleton getInstance() {
         if (accDataCacheSingleton == null) {
@@ -177,38 +180,40 @@ public class AccDataCacheSingleton {
         }
     }
 
+    public Map<Integer, Collection<FraaStreamDataUnit>> selectRowsHeaderNotEqualTo(int headerId) {
+        return selectRows(headerId, " != ");
+    }
 
-    public Collection<FraaStreamData> selectRowsHeaderNotEqualto(int headerId) {
-        Log.d(StreamingActivity.TAG, "Looking for rows with id different to: " + headerId);
+    public Map<Integer, Collection<FraaStreamDataUnit>> selectRowsHeaderEqualTo(int headerId) {
+        return selectRows(headerId, " = ");
+    }
+
+    private Map<Integer, Collection<FraaStreamDataUnit>> selectRows(int headerId, String operator) {
         FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
         Cursor c = db.rawQuery("SELECT * FROM " + AccDataContract.AccDataEntry.TABLE_NAME
-                + " WHERE " + AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + " != ?"
-                + " ORDER BY " + AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID,
+                + " WHERE " + AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID +  operator + "?"
+                + " ORDER BY " + AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID
+                + " , " + AccDataContract.AccDataEntry.COLUMN_NAME_INDEX,
                 new String[] {String.valueOf(headerId)});
 
-        Collection<FraaStreamData> output = new ArrayList<>();
-        Integer currentHeaderId = null;
-        FraaStreamData currentData = null;
+        Map<Integer, Collection<FraaStreamDataUnit>> output = new HashMap<>();
         if (c != null) {
             Log.d(StreamingActivity.TAG, "Row count: " + c.getCount());
             if (c.moveToFirst()) {
                 do {
                     int rowHeaderId = c.getInt(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID));
-                    if (currentHeaderId == null
-                            || currentHeaderId != rowHeaderId) {
-                        Log.d(StreamingActivity.TAG, "Row header id: " + rowHeaderId);
-                        currentHeaderId = rowHeaderId;
-                        currentData = new FraaStreamData();
-                        currentData.setHeaderId(getServerHeaderId(rowHeaderId, fraaDbHelper));
-                        output.add(currentData);
-                    }
                     FraaStreamDataUnit unit = new FraaStreamDataUnit();
                     unit.setIndex(c.getInt(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_INDEX)));
                     unit.setX(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_X)));
                     unit.setY(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_X)));
                     unit.setZ(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_X)));
-                    currentData.addDataUnit(unit);
+                    Collection<FraaStreamDataUnit> list = output.get(rowHeaderId);
+                    if (list == null) {
+                        list = new ArrayList<>();
+                        output.put(rowHeaderId, list);
+                    }
+                    list.add(unit);
                 } while (c.moveToNext());
             }
         }
@@ -217,8 +222,9 @@ public class AccDataCacheSingleton {
         return output;
     }
 
-    private int getServerHeaderId(int headerId, FraaDbHelper fraaDbHelper) {
+    public int getServerHeaderId(int headerId) {
         Integer output = null;
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
         Cursor c = db.rawQuery("SELECT * FROM " + HeaderContract.HeaderEntry.TABLE_NAME
                 + " WHERE " + HeaderContract.HeaderEntry._ID + " = ? ",
@@ -291,5 +297,13 @@ public class AccDataCacheSingleton {
 
     public void setHeaderLabel(String headerLabel) {
         this.headerLabel = headerLabel;
+    }
+
+    public boolean isStarted() {
+        return started;
+    }
+
+    public void setStarted(boolean started) {
+        this.started = started;
     }
 }
