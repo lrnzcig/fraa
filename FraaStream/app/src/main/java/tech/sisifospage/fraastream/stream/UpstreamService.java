@@ -35,6 +35,7 @@ public class UpstreamService extends Service {
 
     private Map<UUID, FraaStreamData> pendingRequests = new HashMap<>();
     private Map<UUID, Integer> pendingAttempts = new HashMap<>();
+    private Map<Integer, Collection<FraaStreamMetaData>> pendingRequestsMetadata = new HashMap<>();
 
     // TODO app property
     private static final String server_url = "http://192.168.1.128:8080/fraastreamserver/webapi/";
@@ -183,11 +184,57 @@ public class UpstreamService extends Service {
     }
 
     private void addDataToPendingRequests(FraaStreamData data) {
-        // TODO avoid duplicated requests
+        // check if exactly the same request has been added to pendingRequestsMetadata
+        FraaStreamMetaData metaData = getMetaData(data);
+        if (alreadyRequested(data, metaData)) {
+            return;
+        }
+        // add metadata to pendingRequestsMetadata
+        Collection<FraaStreamMetaData> list = pendingRequestsMetadata.get(data.getHeaderId());
+        if (list == null) {
+            list = new ArrayList<>();
+            pendingRequestsMetadata.put(data.getHeaderId(), list);
+        }
+        list.add(metaData);
+        // generate the request itself
         UUID requestId = UUID.randomUUID();
         data.setRequestId(requestId);
         pendingRequests.put(requestId, data);
         Log.d(StreamingActivity.TAG, "Added request to be processed: " + requestId);
+    }
+
+    private boolean alreadyRequested(FraaStreamData data, FraaStreamMetaData metaData) {
+        Collection<FraaStreamMetaData> list = pendingRequestsMetadata.get(data.getHeaderId());
+        if (list == null) {
+            return false;
+        }
+        for (FraaStreamMetaData candidate : list) {
+            if (candidate.maxIndex == metaData.maxIndex
+                    && candidate.minIndex == metaData.minIndex) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private FraaStreamMetaData getMetaData(FraaStreamData data) {
+        Integer minIndex = null;
+        Integer maxIndex = null;
+        for (FraaStreamDataUnit unit : data.getDataUnits()) {
+            int index = unit.getIndex();
+            if (minIndex == null) {
+                minIndex = index;
+            } else if (minIndex > index) {
+                minIndex = index;
+            }
+            if (maxIndex == null) {
+                maxIndex = index;
+            } else if (maxIndex < index) {
+                maxIndex = index;
+            }
+        }
+        Log.d(StreamingActivity.TAG, "Min index: " + minIndex + ", max index: " + maxIndex);
+        return new FraaStreamMetaData(minIndex, maxIndex);
     }
 
     /**
@@ -212,13 +259,15 @@ public class UpstreamService extends Service {
             int count = 0;
             FraaStreamData data = null;
             for (FraaStreamDataUnit unit : units) {
-                if (count == 0 || count == MAX_NUMBER_DATA_UNITS_UPSTREAM) {
+                if (count == 0 ||
+                        (count%MAX_NUMBER_DATA_UNITS_UPSTREAM == 0)) {
+                    Log.d(StreamingActivity.TAG, "count for new data:" + count);
                     data = new FraaStreamData();
                     data.setHeaderId(serverHeaderId);
                     output.add(data);
                 }
-                count++;
                 data.addDataUnit(unit);
+                count++;
             }
         }
         return output;
