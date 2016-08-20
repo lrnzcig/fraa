@@ -10,6 +10,7 @@ import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
@@ -20,6 +21,7 @@ import tech.sisifospage.fraastream.stream.FraaStreamDataUnit;
 import tech.sisifospage.fraastream.StreamingActivity;
 import tech.sisifospage.fraastream.bbdd.AccDataContract;
 import tech.sisifospage.fraastream.bbdd.FraaDbHelper;
+import tech.sisifospage.fraastream.stream.FraaStreamHeader;
 import tech.sisifospage.fraastream.stream.UpstreamService;
 
 /**
@@ -114,6 +116,28 @@ public class AccDataCacheSingleton {
         return;
     }
 
+    public FraaStreamHeader getHeader(int headerId) {
+        FraaStreamHeader output = null;
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
+        SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
+        ContentValues values = new ContentValues();
+        Cursor c = db.rawQuery("SELECT * FROM " + HeaderContract.HeaderEntry.TABLE_NAME
+                        + " WHERE " + HeaderContract.HeaderEntry._ID + " = ? ",
+                new String[] {String.valueOf(headerId)});
+        if (c != null) {
+            if (c.moveToFirst()) {
+                output = new FraaStreamHeader();
+                output.setCreatedAt(new Date(c.getInt(c.getColumnIndex(HeaderContract.HeaderEntry.COLUMN_NAME_CREATED_AT))));
+                output.setMacAddress(c.getString(c.getColumnIndex(HeaderContract.HeaderEntry.COLUMN_NAME_MAC_ADDRESS)));
+                output.setLabel(c.getString(c.getColumnIndex(HeaderContract.HeaderEntry.COLUMN_NAME_LABEL)));
+            }
+        }
+
+        db.close();
+        release();
+
+        return output;
+    }
 
     public void setServerHeaderId(int headerId, int serverHeaderId) {
         FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();

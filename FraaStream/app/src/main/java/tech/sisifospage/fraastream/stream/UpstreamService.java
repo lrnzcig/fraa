@@ -138,13 +138,17 @@ public class UpstreamService extends Service {
     }
 
     private void getHeaderIdFromServer() {
-        RequestQueue queue = Volley.newRequestQueue(this);
-        String url = server_url + "header";
-
         FraaStreamHeader header = new FraaStreamHeader();
         header.setMacAddress(getMacAddress());
         header.setCreatedAt(new Date(getCreatedAt()));
         header.setLabel(getHeaderLabel());
+
+        getHeaderIdFromServer(header, getHeaderId());
+    }
+
+    private void getHeaderIdFromServer(FraaStreamHeader header, final int headerId) {
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url = server_url + "header";
 
         GsonRequest postRequest = new GsonRequest<FraaStreamHeader, FraaStreamHeader>(Request.Method.POST, url, header, null,
                 new Response.Listener<FraaStreamHeader>() {
@@ -154,7 +158,7 @@ public class UpstreamService extends Service {
                         Log.d(StreamingActivity.TAG, "Response header id: " + response.getId());
                         // update new serverHeaderId
                         AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
-                        obj.setServerHeaderId(getHeaderId(), serverHeaderId);
+                        obj.setServerHeaderId(headerId, serverHeaderId);
                     }
                 }, new Response.ErrorListener() {
             @Override
@@ -168,6 +172,7 @@ public class UpstreamService extends Service {
 
     }
 
+
     private void sendAllButCurrentHeaderToServer() {
         AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
         Collection<FraaStreamData> list = convertWithMaxDataSize(obj.selectRowsHeaderNotEqualTo(getHeaderId()));
@@ -178,6 +183,7 @@ public class UpstreamService extends Service {
     }
 
     private void addDataToPendingRequests(FraaStreamData data) {
+        // TODO avoid duplicated requests
         UUID requestId = UUID.randomUUID();
         data.setRequestId(requestId);
         pendingRequests.put(requestId, data);
@@ -193,11 +199,14 @@ public class UpstreamService extends Service {
     private Collection<FraaStreamData> convertWithMaxDataSize(Map<Integer, Collection<FraaStreamDataUnit>> input) {
         Collection<FraaStreamData> output = new ArrayList<>();
         for (Integer headerId : input.keySet()) {
-            Integer serverHeaderId = AccDataCacheSingleton.getInstance().getServerHeaderId(headerId);
+            AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+            Integer serverHeaderId = cache.getServerHeaderId(headerId);
             if (serverHeaderId == AccDataCacheSingleton.NULL_SERVER_HEADER_ID) {
                 Log.w(StreamingActivity.TAG, "Data from headerId: " + headerId + " does not have a server header id");
-                // TODO solve!
-                //continue;
+                FraaStreamHeader header = cache.getHeader(headerId);
+                getHeaderIdFromServer(header, headerId);
+                // note it cannot be added as a request until it gets a headerId
+                continue;
             }
             Collection<FraaStreamDataUnit> units = input.get(headerId);
             int count = 0;
@@ -242,7 +251,6 @@ public class UpstreamService extends Service {
                 DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
         // Add the request to the RequestQueue.
         queue.add(postRequest);
-
     }
 
     public long getCreatedAt() {
