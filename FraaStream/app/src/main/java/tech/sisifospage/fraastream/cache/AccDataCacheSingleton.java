@@ -266,28 +266,38 @@ public class AccDataCacheSingleton {
         return output;
     }
 
+    private static Integer REMOVE_CHUNK_SIZE = 100;
 
     public void removeFromDatabase(FraaStreamData data) {
         FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
-        //db.beginTransaction();
-        for (FraaStreamDataUnit unit : data.getDataUnits()) {
-            // TODO result count is 0! try with _id in (list)
-            int count = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
-                    AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=? AND " + AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + "=?",
-                    new String[] {String.valueOf(data.getHeaderId()), String.valueOf(unit.getIndex())} );
-            //Log.d(StreamingActivity.TAG, "Delete (" + String.valueOf(data.getHeaderId()) + ", " + String.valueOf(unit.getIndex()) +") result:" + count);
+
+        String[] indexArray = getIndexArray(data.getDataUnits());
+        if (indexArray.length % 100 != 0) {
+            Log.e(StreamingActivity.TAG, "Packet size is not a multiple of 100??!!???");
         }
-        //db.rawQuery("DELETE FROM " + AccDataContract.AccDataEntry.TABLE_NAME + " WHERE header_id=156",
-        //        null );
-        //Log.d(StreamingActivity.TAG, "Delete (" + String.valueOf(data.getHeaderId()) + ") result:");
-        //int count2 = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
-        //        null,
-        //        null);
-        //Log.d(StreamingActivity.TAG, "Delete (all) result:" + count2);
-        //db.endTransaction();
+        for (int queryNum = 1; queryNum <= indexArray.length / REMOVE_CHUNK_SIZE; queryNum++) {
+            // divide the query in groups of REMOVE_CHUNK_SIZE indexes
+            String[] params = new String[REMOVE_CHUNK_SIZE + 1];
+            params[0] = String.valueOf(data.getHeaderId());
+            System.arraycopy(indexArray, (queryNum - 1)*REMOVE_CHUNK_SIZE, params, 1, REMOVE_CHUNK_SIZE);
+            int count = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
+                    AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=? AND " +
+                            AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + " IN (" + new String(new char[indexArray.length-1]).replace("\0", "?,") + "?)",
+                    params);
+            Log.d(StreamingActivity.TAG, "Delete from " + String.valueOf(data.getHeaderId()) + " this many indexes:" + count);
+        }
         db.close();
         release();
+    }
+
+    public String[] getIndexArray(FraaStreamDataUnit[] units) {
+        String[] output = new String[units.length];
+        int index = 0;
+        for (FraaStreamDataUnit unit : units) {
+            output[index++] = unit.getIndex().toString();
+        }
+        return output;
     }
 
 
