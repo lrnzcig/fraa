@@ -266,9 +266,29 @@ public class AccDataCacheSingleton {
         return output;
     }
 
+    public int getLocalHeaderId(int serverHeaderId) {
+        Integer output = null;
+        FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
+        SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT * FROM " + HeaderContract.HeaderEntry.TABLE_NAME
+                        + " WHERE " + HeaderContract.HeaderEntry.COLUMN_NAME_SERVER_HEADER_ID + " = ? ",
+                new String[] {String.valueOf(serverHeaderId)});
+        if (c != null) {
+            if (c.moveToFirst()) {
+                output = c.getInt(c.getColumnIndex(HeaderContract.HeaderEntry._ID));
+            }
+        }
+        db.close();
+        release();
+        return output;
+    }
+
     private static Integer REMOVE_CHUNK_SIZE = 100;
 
     public void removeFromDatabase(FraaStreamData data) {
+        // this is an access, has to be done before blocking the semaphore for removing
+        String localServerId = String.valueOf(getLocalHeaderId(data.getHeaderId()));
+
         FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
 
@@ -279,13 +299,13 @@ public class AccDataCacheSingleton {
         for (int queryNum = 1; queryNum <= indexArray.length / REMOVE_CHUNK_SIZE; queryNum++) {
             // divide the query in groups of REMOVE_CHUNK_SIZE indexes
             String[] params = new String[REMOVE_CHUNK_SIZE + 1];
-            params[0] = String.valueOf(data.getHeaderId());
+            params[0] = localServerId;
             System.arraycopy(indexArray, (queryNum - 1)*REMOVE_CHUNK_SIZE, params, 1, REMOVE_CHUNK_SIZE);
             int count = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
                     AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=? AND " +
                             AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + " IN (" + new String(new char[indexArray.length-1]).replace("\0", "?,") + "?)",
                     params);
-            Log.d(StreamingActivity.TAG, "Delete from " + String.valueOf(data.getHeaderId()) + " this many indexes:" + count);
+            Log.d(StreamingActivity.TAG, "Delete from " + localServerId + " this many indexes:" + count);
         }
         db.close();
         release();
