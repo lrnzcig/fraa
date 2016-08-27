@@ -1,13 +1,20 @@
 package tech.sisifospage.fraastream_server.hbm;
 
+import java.io.Serializable;
+
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
 
 @Entity
 @Table(name="acc_data")
-public class AccData {
+public class AccData implements Serializable {
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -7145634661055552596L;
+	
 	@Id
 	private AccDataId id;
 	private float x;

@@ -1,5 +1,6 @@
 package tech.sisifospage.fraastream_server.resources;
 
+import java.math.BigInteger;
 import java.util.UUID;
 
 import javax.ws.rs.POST;
@@ -14,6 +15,7 @@ import org.hibernate.Criteria;
 import org.hibernate.NonUniqueObjectException;
 import org.hibernate.Session;
 import org.hibernate.criterion.Property;
+import org.hibernate.exception.ConstraintViolationException;
 
 import com.google.gson.Gson;
 
@@ -53,24 +55,54 @@ public class Data {
 	    		session.save(item);
 	    	} catch (NonUniqueObjectException e) {
 	    		// check values are the same
-	    		Criteria criteria = session.createCriteria(AccData.class)
-	    				.add(Property.forName("id.headerId").eq(data.getHeaderId()))
-	    				.add(Property.forName("id.id").eq(unit.getIndex()));
-	    		AccData result = (AccData) criteria.list().get(0);
-	    		if (result.getX() != unit.getX()
-	    				|| result.getY() != unit.getY()
-	    				|| result.getZ() != unit.getZ()) {
-		    		System.out.println("Non unique, and values different than previously stored:" + data.getHeaderId()  + ", " + unit.getIndex());
-	    			throw(e);
-	    		}
+	    		// but 1st redo the session, since the duplicated registers already inserted make the commit fail
+	    		session.getTransaction().rollback();
+	    		session.close();
+	    		session = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
+	    		session.beginTransaction();
+	    		redoCheckingIfExistsFirst(data, session);
 	    	}
 		}
-		session.getTransaction().commit();
+		try {
+			session.getTransaction().commit();
+		} catch (ConstraintViolationException e) {
+			session = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
+			session.beginTransaction();
+    		redoCheckingIfExistsFirst(data, session);			
+		}
 
     	
     	System.out.println(requestContext.getHeaders().toString());
     	return data.getRequestId();
     }
+    
+    private void redoCheckingIfExistsFirst(final FraaStreamData data, final Session session) {
+		for (FraaStreamDataUnit unit : data.getDataUnits()) {
+			boolean exists = checkIfExistsIsTheSame(unit, data.getHeaderId(), session);
+			if (! exists) {
+				AccData item = new AccData(new AccDataId(data.getHeaderId(), unit.getIndex()), unit.getX(), unit.getY(), unit.getZ());
+    			session.save(item);
+			}
+		}    	
+    }
+
+	private boolean checkIfExistsIsTheSame(final FraaStreamDataUnit unit, final BigInteger headerId, final Session session) {
+		Criteria criteria = session.createCriteria(AccData.class)
+				.add(Property.forName("id.headerId").eq(headerId))
+				.add(Property.forName("id.id").eq(unit.getIndex()));
+		AccData result = (AccData) criteria.list().get(0);
+		if (result == null) {
+			return false;
+		}
+		if (result.getX() != unit.getX()
+				|| result.getY() != unit.getY()
+				|| result.getZ() != unit.getZ()) {
+			String message = "Non unique, and values different than previously stored:" + headerId  + ", " + unit.getIndex();
+    		System.out.println(message);
+			throw new NonUniqueObjectException(message, new AccData(new AccDataId(headerId, unit.getIndex()), unit.getX(), unit.getY(), unit.getZ()), AccData.class.getName());
+		}
+		return true;
+	}
 
 
 }
