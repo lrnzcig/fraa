@@ -112,7 +112,7 @@ public class UpstreamService extends Service {
             }
         };
         // runs every 60 seconds
-        dataProcessHandle = dataScheduler.scheduleAtFixedRate(checkData, 10, 60, TimeUnit.SECONDS);
+        dataProcessHandle = dataScheduler.scheduleAtFixedRate(checkData, 10, 20, TimeUnit.SECONDS);
     }
 
     public void checkCacheDataStream() {
@@ -273,19 +273,22 @@ public class UpstreamService extends Service {
         return output;
     }
 
-    private void sendToServer(FraaStreamData data) {
+    private void sendToServer(final FraaStreamData data) {
         RequestQueue queue = Volley.newRequestQueue(this);
         String url = server_url + "data";
         GsonRequest postRequest = new GsonRequest<FraaStreamData, UUID>(Request.Method.POST, url, data, null,
                 new Response.Listener<UUID>() {
                     @Override
                     public void onResponse(UUID response) {
+                        if (response == null || pendingRequests.get(response) == null) {
+                            return;
+                        }
                         Log.i(StreamingActivity.TAG, "Response id to be removed: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
                         // update new serverHeaderId
                         AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
                         obj.removeFromDatabase(pendingRequests.get(response));
                         pendingRequests.remove(response);
-                        Log.i(StreamingActivity.TAG, "Response id finished removing: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
+                        Log.i(StreamingActivity.TAG, "Response id finished removing: " + response + "(" + data.getHeaderId() + ")");
                     }
                 }, new Response.ErrorListener() {
             @Override
