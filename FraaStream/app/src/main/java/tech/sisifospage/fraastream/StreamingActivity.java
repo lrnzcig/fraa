@@ -128,8 +128,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         }
         accel_switch = (Switch) findViewById(R.id.accel_switch);
 
-        cache = AccDataCacheSingleton.getInstance();
-        cache.init(this, mwBoard.getMacAddress());
+        cache = AccDataCacheSingleton.getInstance(this.getBaseContext());
 
         accel_switch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -137,6 +136,8 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                 if (isChecked) {
                     accelModule.setOutputDataRate(ACC_FREQ);
                     accelModule.setAxisSamplingRange(ACC_RANGE);
+
+                    cache.start(mwBoard.getMacAddress());
 
                     // streaming
                     accelModule.routeData()
