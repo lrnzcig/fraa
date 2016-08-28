@@ -25,13 +25,18 @@ public class GsonRequest<T, U> extends Request<String> {
     private final T params;
     private final Class responseClass;
 
+    private static final String TAG = "MetaWear.GsonRequest";
+
     /**
-     * Make a GET request and return a parsed object from JSON.
+     * GET request and return a parsed object from JSON
      *
      * @param method
      * @param url URL of the request to make
-     * @param params Input object
-     * @param headers Map of request headers
+     * @param params Input object of type T
+     * @param headers
+     * @param listener Listener of the response of type U
+     * @param errorListener
+     * @param responseClass Needs to be U.class!
      */
     public GsonRequest(int method, String url, T params, Map<String, String> headers,
                        Response.Listener<U> listener, Response.ErrorListener errorListener,
@@ -45,27 +50,20 @@ public class GsonRequest<T, U> extends Request<String> {
 
     @Override
     public Map<String, String> getHeaders() throws AuthFailureError {
-        //Log.i(StreamingActivity.TAG, super.getHeaders().toString());
-        //Log.i(StreamingActivity.TAG, headers.toString());
         return headers != null ? headers : super.getHeaders();
     }
 
     @Override
     protected void deliverResponse(String response) {
-        //if (responseClass == String.class) {
-        //    listener.onResponse((U) response);
-        //} else {
-        //Log.d(StreamingActivity.TAG, "fromJson");
-            U r = (U) gson.fromJson(response, responseClass);
-            listener.onResponse(r);
-        //}
+        U r = (U) gson.fromJson(response, responseClass);
+        listener.onResponse(r);
     }
 
     @Override
     public byte[] getBody() throws AuthFailureError {
         if (params != null) {
             String obj = gson.toJson(params);
-            Log.i(StreamingActivity.TAG, obj);
+            Log.d(TAG, obj);
             try {
                 return obj.getBytes(getParamsEncoding());
             } catch (UnsupportedEncodingException e) {
