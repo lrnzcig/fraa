@@ -34,7 +34,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
 
     private MetaWearBleService.LocalBinder serviceBinder;
 
-    public static final String TAG = "MetaWear";
+    private static final String TAG = "MetaWear.StreamActivity";
     private MetaWearBoard mwBoard;
 
     // connect to device
@@ -60,6 +60,17 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         @Override
         public void connected() {
             Log.i(TAG, "Connected");
+            if (accel_switch.isChecked()) {
+                if (accelModule == null) {
+                    Log.d(TAG, "Get accelModule after reconnect");
+                    getAccelModule();
+                }
+                if (! cache.isStarted()) {
+                    Log.d(TAG, "Restart streaming after reconnect");
+                    startStreaming();
+                }
+            }
+
         }
 
         @Override
@@ -120,83 +131,102 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         ///< Typecast the binder to the service's LocalBinder class
         mwBoard = ((MetaWearBleService.LocalBinder) service).getMetaWearBoard(btDevice);
         mwBoard.setConnectionStateHandler(stateHandler);
+        getAccelModule();
+        accel_switch = (Switch) findViewById(R.id.accel_switch);
+
+        cache = AccDataCacheSingleton.getInstance(this.getBaseContext());
+        if (accel_switch.isChecked()) {
+            Log.d(TAG, "Activity has been restarted");
+            // this is in case activity is restarted
+            if (! mwBoard.isConnected()) {
+                Log.d(TAG, "Reconnect after restart of activity");
+                mwBoard.connect();
+            } else {
+                if (accelModule == null) {
+                    Log.d(TAG, "Get accelModule after restart of activity");
+                    getAccelModule();
+                }
+                Log.d(TAG, "Start streaming after restart of activity");
+                startStreaming();
+            }
+        }
+
+        accel_switch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                Log.i("Switch State=", "" + isChecked);
+                if (isChecked) {
+                    startStreaming();
+                } else {
+                    stopStreaming();
+                }
+            }
+
+        });
+    }
+
+    private void getAccelModule() {
         try {
             accelModule = mwBoard.getModule(Accelerometer.class);
             loggingModule = mwBoard.getModule(Logging.class);
         } catch (UnsupportedModuleException e) {
             e.printStackTrace();
         }
-        accel_switch = (Switch) findViewById(R.id.accel_switch);
+    }
 
-        cache = AccDataCacheSingleton.getInstance(this.getBaseContext());
+    private void startStreaming() {
+        accelModule.setOutputDataRate(ACC_FREQ);
+        accelModule.setAxisSamplingRange(ACC_RANGE);
 
-        accel_switch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                Log.i("Switch State=", "" + isChecked);
-                if (isChecked) {
-                    accelModule.setOutputDataRate(ACC_FREQ);
-                    accelModule.setAxisSamplingRange(ACC_RANGE);
+        cache.start(mwBoard.getMacAddress());
 
-                    cache.start(mwBoard.getMacAddress());
+        // streaming
+        accelModule.routeData()
+                .fromAxes().stream(STREAM_KEY)
+                .commit().onComplete(new AsyncOperation.CompletionHandler<RouteManager>() {
+            @Override
+            public void success(RouteManager result) {
+                result.subscribe(STREAM_KEY, new RouteManager.MessageHandler() {
+                    @Override
+                    public void process(Message message) {
+                        CartesianFloat axes = message.getData(CartesianFloat.class);
+                        //Log.i(TAG, axes.toString());
 
-                    // streaming
-                    accelModule.routeData()
-                            .fromAxes().stream(STREAM_KEY)
-                            .commit().onComplete(new AsyncOperation.CompletionHandler<RouteManager>() {
-                        @Override
-                        public void success(RouteManager result) {
-                            result.subscribe(STREAM_KEY, new RouteManager.MessageHandler() {
-                                @Override
-                                public void process(Message message) {
-                                    CartesianFloat axes = message.getData(CartesianFloat.class);
-                                    //Log.i(TAG, axes.toString());
+                        FraaStreamDataUnit unit = new FraaStreamDataUnit();
+                        unit.setIndex(index);
+                        unit.setX(axes.x());
+                        unit.setY(axes.y());
+                        unit.setZ(axes.z());
+                        index++;
 
-                                    FraaStreamDataUnit unit = new FraaStreamDataUnit();
-                                    unit.setIndex(index);
-                                    unit.setX(axes.x());
-                                    unit.setY(axes.y());
-                                    unit.setZ(axes.z());
-                                    index++;
-
-                                    cache.add(unit);
-                                    if (index % 100 == 0) {
-                                        Log.i(TAG, "New row id inserted " + index);
-                                    }
-
-                                }
-
-                            });
+                        cache.add(unit);
+                        if (index % 100 == 0) {
+                            Log.i(TAG, "New row id inserted " + index);
                         }
 
-                        @Override
-                        public void failure(Throwable error) {
-                            Log.e(TAG, "Error committing route", error);
-                        }
-                    });
+                    }
 
-
-                    accelModule.enableAxisSampling(); //You must enable axis sampling before you can start
-                    accelModule.start();
-                    cache.setStarted(true);
-                } else {
-                    accelModule.disableAxisSampling(); //Likewise, you must first disable axis sampling before stopping
-                    accelModule.stop();
-                    cache.setStarted(false);
-
-                    // TODO select count => move to Singleton
-                    FraaDbHelper fraaDbHelper = new FraaDbHelper(getBaseContext());    // TODO is context ok?
-                    SQLiteDatabase db = fraaDbHelper.getReadableDatabase();
-                    long count = DatabaseUtils.queryNumEntries(db, AccDataContract.AccDataEntry.TABLE_NAME,
-                            AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=?", new String[]{"10"});
-
-                    //String message = "Total number of rows inserted " + count;
-                    String message = "Total number of rows inserted " + index;
-                    Log.i(TAG, message);
-                }
+                });
             }
 
+            @Override
+            public void failure(Throwable error) {
+                Log.e(TAG, "Error committing route", error);
+            }
         });
 
+
+        accelModule.enableAxisSampling(); //You must enable axis sampling before you can start
+        accelModule.start();
+        cache.setStarted(true);
+    }
+
+    private void stopStreaming() {
+        accelModule.disableAxisSampling(); //Likewise, you must first disable axis sampling before stopping
+        accelModule.stop();
+        cache.setStarted(false);
+
+        String message = "Total number of rows inserted " + index;
+        Log.i(TAG, message);
     }
 
     @Override
