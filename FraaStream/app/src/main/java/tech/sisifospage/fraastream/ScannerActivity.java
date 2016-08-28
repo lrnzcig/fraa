@@ -19,7 +19,7 @@ import java.util.UUID;
 
 public class ScannerActivity extends AppCompatActivity implements BleScannerFragment.ScannerCommunicationBus, ServiceConnection {
 
-    private static final String TAG = "MetaWear";
+    private static final String TAG = "MetaWear.ScanActivity";
     private final static UUID[] serviceUuids;
     private MetaWearBleService.LocalBinder serviceBinder;
     public static final int REQUEST_START_APP= 1;
