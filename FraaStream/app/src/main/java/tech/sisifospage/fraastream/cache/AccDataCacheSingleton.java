@@ -33,7 +33,9 @@ public class AccDataCacheSingleton {
 
     private final Semaphore available = new Semaphore(1);
 
-    private static int LENGTH_OF_BUFFER = 500;
+    private static int LENGTH_OF_BUFFER = 1000;
+    private static Integer REMOVE_CHUNK_SIZE = 100;
+
     public static int NULL_SERVER_HEADER_ID = -1;
 
     private class Buffer {
@@ -151,6 +153,7 @@ public class AccDataCacheSingleton {
 
 
     public synchronized void add(FraaStreamDataUnit unit) {
+        // TODO what happens if unitsPointer == LENGTH_OF_BUFFER already?
         bufferOf2[bufferPointer].units[unitsPointer++] = unit;
         if (unitsPointer == LENGTH_OF_BUFFER) {
             Log.d(StreamingActivity.TAG, "Recreating singleton buffer");
@@ -162,6 +165,7 @@ public class AccDataCacheSingleton {
     private void toggleBuffer() {
         //Log.d(StreamingActivity.TAG, "toggle");
         if (bufferBackupPending != null) {
+            // TODO semaphore instead of this exception?
             throw new RuntimeException("Trying to toggle buffer when data has not been backed-up yet");
         }
         bufferBackupPending = bufferPointer;
@@ -283,17 +287,16 @@ public class AccDataCacheSingleton {
         return output;
     }
 
-    private static Integer REMOVE_CHUNK_SIZE = 100;
-
     public void removeFromDatabase(FraaStreamData data) {
         // this is an access, has to be done before blocking the semaphore for removing
         String localServerId = String.valueOf(getLocalHeaderId(data.getHeaderId()));
 
+        // TODO maybe bigger chunk size but block only while deleting?
         FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
         SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
 
         String[] indexArray = getIndexArray(data.getDataUnits());
-        if (indexArray.length % 100 != 0) {
+        if (indexArray.length % REMOVE_CHUNK_SIZE != 0) {
             Log.e(StreamingActivity.TAG, "Packet size is not a multiple of 100??!!???");
         }
         for (int queryNum = 1; queryNum <= indexArray.length / REMOVE_CHUNK_SIZE; queryNum++) {
@@ -303,7 +306,7 @@ public class AccDataCacheSingleton {
             System.arraycopy(indexArray, (queryNum - 1)*REMOVE_CHUNK_SIZE, params, 1, REMOVE_CHUNK_SIZE);
             int count = db.delete(AccDataContract.AccDataEntry.TABLE_NAME,
                     AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=? AND " +
-                            AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + " IN (" + new String(new char[indexArray.length-1]).replace("\0", "?,") + "?)",
+                            AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + " IN (" + new String(new char[REMOVE_CHUNK_SIZE-1]).replace("\0", "?,") + "?)",
                     params);
             Log.d(StreamingActivity.TAG, "Delete from " + localServerId + " this many indexes:" + count);
         }
