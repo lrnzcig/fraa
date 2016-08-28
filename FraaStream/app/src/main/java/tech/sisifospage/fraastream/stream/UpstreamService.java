@@ -28,6 +28,8 @@ import tech.sisifospage.fraastream.cache.AccDataCacheSingleton;
 
 public class UpstreamService extends Service {
 
+    private static final String TAG = "MetaWear.UpstreamSrv";
+
     private final int MAX_NUMBER_DATA_UNITS_UPSTREAM = 500;
     private final int MAX_NUMBER_ATTEMPTS_PER_REQUEST = 3;
 
@@ -45,6 +47,8 @@ public class UpstreamService extends Service {
 
     private final ScheduledExecutorService cacheScheduler = Executors.newScheduledThreadPool(1);
 
+    private AccDataCacheSingleton cache;
+
     public UpstreamService() {
     }
 
@@ -58,7 +62,10 @@ public class UpstreamService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         int out = super.onStartCommand(intent, flags, startId);
-        Log.d(StreamingActivity.TAG, "onStartCommand");
+        Log.d(TAG, "onStartCommand service");
+        if (getCache() == null) {
+            return out;
+        }
 
         // get server side header id and update SQLite
         getHeaderIdFromServer();
@@ -78,7 +85,22 @@ public class UpstreamService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(StreamingActivity.TAG, "onCreate");
+        Log.d(TAG, "onCreate");
+    }
+
+    private AccDataCacheSingleton getCache() {
+        AccDataCacheSingleton newCache = AccDataCacheSingleton.getInstance();
+        if (newCache == null) {
+            Log.d(TAG, "Activity has been destroyed");
+            this.stopSelf();
+            return cache;
+        }
+        if (cache != null && newCache.getHeaderId() != cache.getHeaderId()) {
+            Log.d(TAG, "A new instance of the service has been created");
+            this.stopSelf();
+        }
+        cache = newCache;
+        return cache;
     }
 
     public void checkDataEveryInterval() {
@@ -97,14 +119,14 @@ public class UpstreamService extends Service {
                     }
                     pendingAttempts.put(requestId, attempts);
                     FraaStreamData data = pendingRequests.get(requestId);
-                    Log.d(StreamingActivity.TAG, "Sending data for server header id: " + data.getHeaderId()
+                    Log.d(TAG, "Sending data for server header id: " + data.getHeaderId()
                         + ", attempt: " + attempts + " request id: " + requestId);
                     sendToServer(data);
                     dataSent = true;
                     break;
                 }
                 if (! dataSent & ! isStarted()) {
-                    Log.d(StreamingActivity.TAG, "No more upstream requests pending (or too many failed attempts)");
+                    Log.d(TAG, "No more upstream requests pending (or too many failed attempts)");
                     dataProcessHandle.cancel(true);
                 } else {
                     //Log.d(StreamingActivity.TAG, "end beep");
@@ -118,7 +140,7 @@ public class UpstreamService extends Service {
     public void checkCacheDataStream() {
         final Runnable checkData = new Runnable() {
             public void run() {
-                AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
+                AccDataCacheSingleton obj = getCache();
                 Collection<FraaStreamData> list = convertWithMaxDataSize(obj.selectRowsHeaderEqualTo(getHeaderId()));
                 boolean dataPending = false;
                 for (FraaStreamData data : list) {
@@ -128,7 +150,7 @@ public class UpstreamService extends Service {
                     }
                 }
                 if (dataPending && dataProcessHandle.isCancelled()) {
-                    Log.d(StreamingActivity.TAG, "restarting data process");
+                    Log.d(TAG, "restarting data process");
                     checkDataEveryInterval();
                 }
             }
@@ -156,16 +178,16 @@ public class UpstreamService extends Service {
                     @Override
                     public void onResponse(FraaStreamHeader response) {
                         serverHeaderId = response.getId();
-                        Log.d(StreamingActivity.TAG, "Response header id: " + response.getId());
+                        Log.d(TAG, "Response header id: " + response.getId());
                         // update new serverHeaderId
-                        AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
+                        AccDataCacheSingleton obj = getCache();
                         obj.setServerHeaderId(headerId, serverHeaderId);
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Log.i(StreamingActivity.TAG, "getHeaderIdFromServer didn't work!");
-                Log.i(StreamingActivity.TAG, error.toString());
+                Log.i(TAG, "getHeaderIdFromServer didn't work!");
+                Log.i(TAG, error.toString());
             }
         }, FraaStreamHeader.class);
         // Add the request to the RequestQueue.
@@ -175,9 +197,9 @@ public class UpstreamService extends Service {
 
 
     private void sendAllButCurrentHeaderToServer() {
-        AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
+        AccDataCacheSingleton obj = getCache();
         Collection<FraaStreamData> list = convertWithMaxDataSize(obj.selectRowsHeaderNotEqualTo(getHeaderId()));
-        Log.d(StreamingActivity.TAG, "Data from previous runs, size of list: " + list.size());
+        Log.d(TAG, "Data from previous runs, size of list: " + list.size());
         for (FraaStreamData data : list) {
             addDataToPendingRequests(data);
         }
@@ -200,7 +222,7 @@ public class UpstreamService extends Service {
         UUID requestId = UUID.randomUUID();
         data.setRequestId(requestId);
         pendingRequests.put(requestId, data);
-        Log.d(StreamingActivity.TAG, "Added request to be processed: " + requestId);
+        Log.d(TAG, "Added request to be processed: " + requestId);
     }
 
     private boolean alreadyRequested(FraaStreamData data, FraaStreamMetaData metaData) {
@@ -233,7 +255,7 @@ public class UpstreamService extends Service {
                 maxIndex = index;
             }
         }
-        Log.d(StreamingActivity.TAG, "Min index: " + minIndex + ", max index: " + maxIndex);
+        Log.d(TAG, "Min index: " + minIndex + ", max index: " + maxIndex);
         return new FraaStreamMetaData(minIndex, maxIndex);
     }
 
@@ -246,10 +268,10 @@ public class UpstreamService extends Service {
     private Collection<FraaStreamData> convertWithMaxDataSize(Map<Integer, Collection<FraaStreamDataUnit>> input) {
         Collection<FraaStreamData> output = new ArrayList<>();
         for (Integer headerId : input.keySet()) {
-            AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
+            AccDataCacheSingleton cache = getCache();
             Integer serverHeaderId = cache.getServerHeaderId(headerId);
             if (serverHeaderId == AccDataCacheSingleton.NULL_SERVER_HEADER_ID) {
-                Log.w(StreamingActivity.TAG, "Data from headerId: " + headerId + " does not have a server header id");
+                Log.w(TAG, "Data from headerId: " + headerId + " does not have a server header id");
                 FraaStreamHeader header = cache.getHeader(headerId);
                 getHeaderIdFromServer(header, headerId);
                 // note it cannot be added as a request until it gets a headerId
@@ -261,7 +283,7 @@ public class UpstreamService extends Service {
             for (FraaStreamDataUnit unit : units) {
                 if (count == 0 ||
                         (count%MAX_NUMBER_DATA_UNITS_UPSTREAM == 0)) {
-                    Log.d(StreamingActivity.TAG, "count for new data:" + count);
+                    Log.d(TAG, "count for new data:" + count);
                     data = new FraaStreamData();
                     data.setHeaderId(serverHeaderId);
                     output.add(data);
@@ -283,18 +305,18 @@ public class UpstreamService extends Service {
                         if (response == null || pendingRequests.get(response) == null) {
                             return;
                         }
-                        Log.i(StreamingActivity.TAG, "Response id to be removed: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
+                        Log.i(TAG, "Response id to be removed: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
                         // update new serverHeaderId
-                        AccDataCacheSingleton obj = AccDataCacheSingleton.getInstance();
+                        AccDataCacheSingleton obj = getCache();
                         obj.removeFromDatabase(pendingRequests.get(response));
                         pendingRequests.remove(response);
-                        Log.i(StreamingActivity.TAG, "Response id finished removing: " + response + "(" + data.getHeaderId() + ")");
+                        Log.i(TAG, "Response id finished removing: " + response + "(" + data.getHeaderId() + ")");
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Log.i(StreamingActivity.TAG, "sendToServer didn't work!");
-                Log.i(StreamingActivity.TAG, error.toString());
+                Log.i(TAG, "sendToServer didn't work!");
+                Log.i(TAG, error.toString());
             }
         }, UUID.class);
         // avoid sending the data twice (big message over a slow network)
@@ -306,27 +328,23 @@ public class UpstreamService extends Service {
     }
 
     public long getCreatedAt() {
-        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
-        return cache.getCreatedAt();
+        AccDataCacheSingleton cache = getCache();
+        return getCache().getCreatedAt();
     }
 
     public int getHeaderId() {
-        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
-        return cache.getHeaderId();
+        return getCache().getHeaderId();
     }
 
     public String getHeaderLabel() {
-        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
-        return cache.getHeaderLabel();
+        return getCache().getHeaderLabel();
     }
 
     public String getMacAddress() {
-        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
-        return cache.getMacAddress();
+        return getCache().getMacAddress();
     }
 
     public boolean isStarted() {
-        AccDataCacheSingleton cache = AccDataCacheSingleton.getInstance();
-        return cache.isStarted();
+        return getCache().isStarted();
     }
 }

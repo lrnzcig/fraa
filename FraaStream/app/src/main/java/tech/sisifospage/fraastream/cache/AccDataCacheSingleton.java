@@ -29,6 +29,8 @@ import tech.sisifospage.fraastream.stream.UpstreamService;
  */
 public class AccDataCacheSingleton {
 
+    private static final String TAG = "MetaWear.Singleton";
+
     private static AccDataCacheSingleton accDataCacheSingleton;
 
     private final Semaphore available = new Semaphore(1);
@@ -38,7 +40,7 @@ public class AccDataCacheSingleton {
 
     public static int NULL_SERVER_HEADER_ID = -1;
 
-    private class Buffer {
+    private static class Buffer {
         public FraaStreamDataUnit[] units;
 
         public Buffer() {
@@ -59,27 +61,34 @@ public class AccDataCacheSingleton {
     private String headerLabel; //TODO
     private boolean started;
 
-    public static AccDataCacheSingleton getInstance() {
-        if (accDataCacheSingleton == null) {
-            Log.d(StreamingActivity.TAG, "Creating cache singleton");
+    // from activity
+    // TODO review, expects caller passes this.getBaseContext()
+    public synchronized static AccDataCacheSingleton getInstance(Context context) {
+        if (accDataCacheSingleton == null && context != null) {
+            Log.d(TAG, "Creating cache singleton");
             accDataCacheSingleton = new AccDataCacheSingleton();
+            accDataCacheSingleton.context = context;
+            // init buffer
+            accDataCacheSingleton.bufferOf2 = new Buffer[2];
+            accDataCacheSingleton.bufferPointer = 0;
+            accDataCacheSingleton.unitsPointer = 0;
+            accDataCacheSingleton.bufferBackupPending = null;
+            accDataCacheSingleton.bufferOf2[accDataCacheSingleton.bufferPointer] = new Buffer();
         }
         return accDataCacheSingleton;
     }
 
-    // this constructor is only initialized when calling from activity
-    public void init(Context context, String macAddress) {
-        this.context = context;    // TODO review, expects caller passes this.getBaseContext()
-        //this.fraaDbHelper = new FraaDbHelper(this.context);
+    // from service
+    public static AccDataCacheSingleton getInstance() {
+        return getInstance(null);
+    }
 
+
+    // only called from activity
+    public void start(String macAddress) {
+        Log.d(TAG, "Start MAC " + macAddress + " and create new header/service");
         setMacAddress(macAddress);
 
-        // init buffer
-        bufferOf2 = new Buffer[2];
-        bufferPointer = 0;
-        unitsPointer = 0;
-        bufferBackupPending = null;
-        bufferOf2[bufferPointer] = new Buffer();
 
         // set next value of headerId for SQLite
         setNewHeaderId();
@@ -87,7 +96,6 @@ public class AccDataCacheSingleton {
         // service for uploading to server
         Intent serviceIntent = new Intent(context, UpstreamService.class);
         context.startService(serviceIntent);
-
     }
 
     private FraaDbHelper getDbHelperWhenAvailable() {
@@ -109,7 +117,7 @@ public class AccDataCacheSingleton {
         values.put(HeaderContract.HeaderEntry.COLUMN_NAME_LABEL, "");
         values.put(HeaderContract.HeaderEntry.COLUMN_NAME_SERVER_HEADER_ID, NULL_SERVER_HEADER_ID);
         long res = db.insert(HeaderContract.HeaderEntry.TABLE_NAME, null, values);
-        Log.d(StreamingActivity.TAG, "New header id: " + res);
+        Log.d(TAG, "New header id: " + res);
         setHeaderId((int) res);
 
         db.close();
@@ -156,7 +164,7 @@ public class AccDataCacheSingleton {
         // TODO what happens if unitsPointer == LENGTH_OF_BUFFER already?
         bufferOf2[bufferPointer].units[unitsPointer++] = unit;
         if (unitsPointer == LENGTH_OF_BUFFER) {
-            Log.d(StreamingActivity.TAG, "Recreating singleton buffer");
+            Log.d(TAG, "Recreating singleton buffer");
             toggleBuffer();
             new InsertIntoDatabaseTask().execute();
         }
@@ -183,8 +191,8 @@ public class AccDataCacheSingleton {
             SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
             //db.beginTransaction();
             //Log.d(StreamingActivity.TAG, "transaction opened");
-            Log.d(StreamingActivity.TAG, "buffer to copy " + bufferBackupPending);
-            Log.d(StreamingActivity.TAG, "header id:" + getHeaderId());
+            Log.d(TAG, "buffer to copy " + bufferBackupPending);
+            Log.d(TAG, "header id:" + getHeaderId());
 
             for (FraaStreamDataUnit unit : bufferOf2[bufferBackupPending].units) {
                 //Log.d(StreamingActivity.TAG, "count:" + count++);
@@ -201,7 +209,7 @@ public class AccDataCacheSingleton {
 
             //db.endTransaction();
             bufferBackupPending = null;
-            Log.d(StreamingActivity.TAG, "copy to SQLite ok");
+            Log.d(TAG, "copy to SQLite ok");
             db.close();
             release();
             return 1;
@@ -227,7 +235,7 @@ public class AccDataCacheSingleton {
 
         Map<Integer, Collection<FraaStreamDataUnit>> output = new HashMap<>();
         if (c != null) {
-            Log.d(StreamingActivity.TAG, "Row count: " + c.getCount());
+            Log.d(TAG, "Row count: " + c.getCount());
             if (c.moveToFirst()) {
                 do {
                     int rowHeaderId = c.getInt(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID));
@@ -263,7 +271,7 @@ public class AccDataCacheSingleton {
             }
         }
         if (output == NULL_SERVER_HEADER_ID) {
-            Log.d(StreamingActivity.TAG, "Header Id " + headerId + " has no server header id yet");
+            Log.d(TAG, "Header Id " + headerId + " has no server header id yet");
         }
         db.close();
         release();
@@ -297,7 +305,7 @@ public class AccDataCacheSingleton {
 
         String[] indexArray = getIndexArray(data.getDataUnits());
         if (indexArray.length % REMOVE_CHUNK_SIZE != 0) {
-            Log.e(StreamingActivity.TAG, "Packet size is not a multiple of 100??!!???");
+            Log.e(TAG, "Packet size is not a multiple of " + REMOVE_CHUNK_SIZE + "??!!??? (" + indexArray.length + ")");
         }
         for (int queryNum = 1; queryNum <= indexArray.length / REMOVE_CHUNK_SIZE; queryNum++) {
             // divide the query in groups of REMOVE_CHUNK_SIZE indexes
@@ -308,7 +316,7 @@ public class AccDataCacheSingleton {
                     AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID + "=? AND " +
                             AccDataContract.AccDataEntry.COLUMN_NAME_INDEX + " IN (" + new String(new char[REMOVE_CHUNK_SIZE-1]).replace("\0", "?,") + "?)",
                     params);
-            Log.d(StreamingActivity.TAG, "Delete from " + localServerId + " this many indexes:" + count);
+            Log.d(TAG, "Delete from " + localServerId + " this many indexes:" + count);
         }
         db.close();
         release();
