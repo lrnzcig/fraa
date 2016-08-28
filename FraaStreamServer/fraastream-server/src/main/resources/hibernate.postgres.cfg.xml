@@ -26,7 +26,7 @@
 		<property name="hibernate.c3p0.max_statements">50</property>
         
         <!-- Echo all executed SQL to stdout -->
-        <property name="show_sql">true</property>
+        <property name="show_sql">false</property>
         
         <!--  creates schema 1st time / updates it if not present -->
         <property name="hibernate.hbm2ddl.auto">update</property>
