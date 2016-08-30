@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
 import tech.sisifospage.fraastream.bbdd.HeaderContract;
@@ -35,11 +36,12 @@ public class AccDataCacheSingleton {
 
     private final Semaphore available = new Semaphore(1);
 
-    private static int LENGTH_OF_BUFFER = 1000;
-    private static Integer REMOVE_CHUNK_SIZE = 100;
+    private static int LENGTH_OF_BUFFER = 500;
+    private static Integer REMOVE_CHUNK_SIZE = 250;
 
     public static int NULL_SERVER_HEADER_ID = -1;
 
+    private static int TOGGLING_BUFFER_SIZE = 6;
     private static class Buffer {
         public FraaStreamDataUnit[] units;
 
@@ -47,10 +49,10 @@ public class AccDataCacheSingleton {
             this.units = new FraaStreamDataUnit[LENGTH_OF_BUFFER];
         }
     }
-    private Buffer[] bufferOf2;
+    private Buffer[] togglingBuffer;
     private int bufferPointer;
     private int unitsPointer;
-    private Integer bufferBackupPending;
+    private Map<Integer, UUID> bufferBackupPending;
 
     // context from activity
     private Context context;
@@ -69,11 +71,11 @@ public class AccDataCacheSingleton {
             accDataCacheSingleton = new AccDataCacheSingleton();
             accDataCacheSingleton.context = context;
             // init buffer
-            accDataCacheSingleton.bufferOf2 = new Buffer[2];
+            accDataCacheSingleton.togglingBuffer = new Buffer[TOGGLING_BUFFER_SIZE];
             accDataCacheSingleton.bufferPointer = 0;
             accDataCacheSingleton.unitsPointer = 0;
-            accDataCacheSingleton.bufferBackupPending = null;
-            accDataCacheSingleton.bufferOf2[accDataCacheSingleton.bufferPointer] = new Buffer();
+            accDataCacheSingleton.bufferBackupPending = new HashMap<>();
+            accDataCacheSingleton.togglingBuffer[accDataCacheSingleton.bufferPointer] = new Buffer();
         }
         return accDataCacheSingleton;
     }
@@ -161,40 +163,56 @@ public class AccDataCacheSingleton {
 
 
     public synchronized void add(FraaStreamDataUnit unit) {
-        // TODO what happens if unitsPointer == LENGTH_OF_BUFFER already?
-        bufferOf2[bufferPointer].units[unitsPointer++] = unit;
+        if (unitsPointer == LENGTH_OF_BUFFER) {
+            Log.e(TAG, "Error, index has been skipped!!!");
+            toggleBuffer();
+        }
+        togglingBuffer[bufferPointer].units[unitsPointer++] = unit;
         if (unitsPointer == LENGTH_OF_BUFFER) {
             Log.d(TAG, "Recreating singleton buffer");
-            toggleBuffer();
-            new InsertIntoDatabaseTask().execute();
+            UUID id = toggleBuffer();
+            new InsertIntoDatabaseTask().execute(id.toString());
         }
     }
 
-    private void toggleBuffer() {
+    private UUID toggleBuffer() {
         //Log.d(StreamingActivity.TAG, "toggle");
-        if (bufferBackupPending != null) {
-            // TODO semaphore instead of this exception?
-            throw new RuntimeException("Trying to toggle buffer when data has not been backed-up yet");
+        if (bufferBackupPending.get(bufferPointer) != null) {
+            Log.e(TAG, "Data would get lost in this case... consider adding a semaphore?");
         }
-        bufferBackupPending = bufferPointer;
-        bufferPointer = (bufferPointer == 0) ? 1 : 0;
-        bufferOf2[bufferPointer] = new Buffer();
+        UUID id = UUID.randomUUID();
+        // use database semaphore...
+        getDbHelperWhenAvailable();
+        bufferBackupPending.put(bufferPointer++, id);
+        release();
+        bufferPointer = (bufferPointer == TOGGLING_BUFFER_SIZE) ? 0 : bufferPointer;
+        togglingBuffer[bufferPointer] = new Buffer();
         unitsPointer = 0;
-        //Log.d(StreamingActivity.TAG, "end toggle");
+        return id;
     }
 
     private class InsertIntoDatabaseTask extends AsyncTask<String, Integer, Integer> {
         @Override
         protected Integer doInBackground(String... params) {
+            UUID id = UUID.fromString(params[0]);
+            Integer bufferToBackup = null;
             FraaDbHelper fraaDbHelper = getDbHelperWhenAvailable();
-            // open ddbb connection only once
             SQLiteDatabase db = fraaDbHelper.getWritableDatabase();
+            for (Integer key : bufferBackupPending.keySet()) {
+                UUID candidate = bufferBackupPending.get(key);
+                if (candidate != null && candidate.equals(id)) {
+                    bufferToBackup = key;
+                }
+            }
+            if (bufferToBackup == null) {
+                Log.e(TAG, "Data got lost... Don't find " + id.toString() + " anymore");
+            }
             //db.beginTransaction();
             //Log.d(StreamingActivity.TAG, "transaction opened");
-            Log.d(TAG, "buffer to copy " + bufferBackupPending);
+            Log.d(TAG, "buffer to copy " + bufferToBackup);
             Log.d(TAG, "header id:" + getHeaderId());
 
-            for (FraaStreamDataUnit unit : bufferOf2[bufferBackupPending].units) {
+            for (FraaStreamDataUnit unit : togglingBuffer[bufferToBackup].units) {
                 //Log.d(StreamingActivity.TAG, "count:" + count++);
                 ContentValues values = new ContentValues();
                 values.put(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID, getHeaderId());
@@ -208,7 +226,7 @@ public class AccDataCacheSingleton {
             }
 
             //db.endTransaction();
-            bufferBackupPending = null;
+            bufferBackupPending.put(bufferToBackup, null);
             Log.d(TAG, "copy to SQLite ok");
             db.close();
             release();

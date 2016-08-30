@@ -32,8 +32,6 @@ import tech.sisifospage.fraastream.stream.FraaStreamDataUnit;
 
 public class StreamingActivity extends AppCompatActivity implements ServiceConnection {
 
-    private MetaWearBleService.LocalBinder serviceBinder;
-
     private static final String TAG = "MetaWear.StreamActivity";
     private MetaWearBoard mwBoard;
 
@@ -196,7 +194,7 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
                         unit.setX(axes.x());
                         unit.setY(axes.y());
                         unit.setZ(axes.z());
-                        index++;
+                        getIndexAndIncrement();
 
                         cache.add(unit);
                         if (index % 100 == 0) {
@@ -218,6 +216,10 @@ public class StreamingActivity extends AppCompatActivity implements ServiceConne
         accelModule.enableAxisSampling(); //You must enable axis sampling before you can start
         accelModule.start();
         cache.setStarted(true);
+    }
+
+    private synchronized int getIndexAndIncrement() {
+        return index++;
     }
 
     private void stopStreaming() {
