@@ -31,6 +31,10 @@
         <service
             android:name=".stream.UpstreamService"
             android:enabled="true"
+            android:exported="true" />
+        <service
+            android:name=".cache.CacheService"
+            android:enabled="true"
             android:exported="true"></service>
     </application>
 
