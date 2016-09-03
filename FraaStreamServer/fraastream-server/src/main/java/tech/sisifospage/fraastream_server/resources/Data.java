@@ -48,29 +48,27 @@ public class Data {
     	Session session = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
 		session.beginTransaction();
 		
-		for (FraaStreamDataUnit unit : data.getDataUnits()) {
-	    	AccData item = new AccData(new AccDataId(data.getHeaderId(), unit.getIndex()), unit.getX(), unit.getY(), unit.getZ());
-	    	//System.out.println(unit.getIndex() + ": (" + unit.getX() + ", " + unit.getY() + ", " + unit.getZ() + ")");
-	    	try {
-	    		session.save(item);
-	    	} catch (NonUniqueObjectException e) {
-	    		// check values are the same
-	    		// but 1st redo the session, since the duplicated registers already inserted make the commit fail
-	    		session.getTransaction().rollback();
-	    		session.close();
-	    		session = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
-	    		session.beginTransaction();
-	    		redoCheckingIfExistsFirst(data, session);
-	    	}
-		}
 		try {
-			session.getTransaction().commit();
+			for (FraaStreamDataUnit unit : data.getDataUnits()) {
+		    	AccData item = new AccData(new AccDataId(data.getHeaderId(), unit.getIndex()), unit.getX(), unit.getY(), unit.getZ());
+		    	//System.out.println(unit.getIndex() + ": (" + unit.getX() + ", " + unit.getY() + ", " + unit.getZ() + ")");
+	    		session.save(item);
+			}
+   			session.getTransaction().commit();
 		} catch (ConstraintViolationException e) {
-			session = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
-			session.beginTransaction();
-    		redoCheckingIfExistsFirst(data, session);			
+			Session session2 = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
+			session2.beginTransaction();
+    		redoCheckingIfExistsFirst(data, session2);
+    		session2.getTransaction().commit();
+    	} catch (NonUniqueObjectException e) {
+    		// check values are the same
+    		// but 1st redo the session, since the duplicated registers already inserted make the commit fail
+    		session.getTransaction().rollback();
+    		Session session2 = FraaStreamServerContextListener.getSessionFactory().getCurrentSession();
+    		session2.beginTransaction();
+    		redoCheckingIfExistsFirst(data, session2);
+    		session2.getTransaction().commit();
 		}
-
     	
     	System.out.println(requestContext.getHeaders().toString());
     	return data.getRequestId();
@@ -90,6 +88,9 @@ public class Data {
 		Criteria criteria = session.createCriteria(AccData.class)
 				.add(Property.forName("id.headerId").eq(headerId))
 				.add(Property.forName("id.id").eq(unit.getIndex()));
+		if (criteria.list().isEmpty()) {
+			return false;
+		}
 		AccData result = (AccData) criteria.list().get(0);
 		if (result == null) {
 			return false;
