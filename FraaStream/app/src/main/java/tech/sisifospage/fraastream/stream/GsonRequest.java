@@ -63,7 +63,7 @@ public class GsonRequest<T, U> extends Request<String> {
     public byte[] getBody() throws AuthFailureError {
         if (params != null) {
             String obj = gson.toJson(params);
-            Log.d(TAG, obj);
+            //Log.d(TAG, obj);
             try {
                 return obj.getBytes(getParamsEncoding());
             } catch (UnsupportedEncodingException e) {

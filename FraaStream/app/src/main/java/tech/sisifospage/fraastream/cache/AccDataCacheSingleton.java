@@ -42,6 +42,7 @@ public class AccDataCacheSingleton {
     public static int NULL_SERVER_HEADER_ID = -1;
 
     private static int TOGGLING_BUFFER_SIZE = 6;
+
     private static class Buffer {
         public FraaStreamDataUnit[] units;
 
@@ -70,12 +71,7 @@ public class AccDataCacheSingleton {
             Log.d(TAG, "Creating cache singleton");
             accDataCacheSingleton = new AccDataCacheSingleton();
             accDataCacheSingleton.context = context;
-            // init buffer
-            accDataCacheSingleton.togglingBuffer = new Buffer[TOGGLING_BUFFER_SIZE];
-            accDataCacheSingleton.bufferPointer = 0;
-            accDataCacheSingleton.unitsPointer = 0;
-            accDataCacheSingleton.bufferBackupPending = new HashMap<>();
-            accDataCacheSingleton.togglingBuffer[accDataCacheSingleton.bufferPointer] = new Buffer();
+            accDataCacheSingleton.initBuffer();
         }
         return accDataCacheSingleton;
     }
@@ -86,11 +82,20 @@ public class AccDataCacheSingleton {
     }
 
 
+    private void initBuffer() {
+        togglingBuffer = new Buffer[TOGGLING_BUFFER_SIZE];
+        bufferPointer = 0;
+        unitsPointer = 0;
+        bufferBackupPending = new HashMap<>();
+        togglingBuffer[accDataCacheSingleton.bufferPointer] = new Buffer();
+    }
+
     // only called from activity
     public void start(String macAddress) {
         Log.d(TAG, "Start MAC " + macAddress + " and create new header/service");
         setMacAddress(macAddress);
 
+        initBuffer();
 
         // set next value of headerId for SQLite
         setNewHeaderId();
@@ -209,8 +214,8 @@ public class AccDataCacheSingleton {
             }
             //db.beginTransaction();
             //Log.d(StreamingActivity.TAG, "transaction opened");
-            Log.d(TAG, "buffer to copy " + bufferToBackup);
-            Log.d(TAG, "header id:" + getHeaderId());
+            //Log.d(TAG, "buffer to copy " + bufferToBackup);
+            //Log.d(TAG, "header id:" + getHeaderId());
 
             for (FraaStreamDataUnit unit : togglingBuffer[bufferToBackup].units) {
                 //Log.d(StreamingActivity.TAG, "count:" + count++);
@@ -227,7 +232,7 @@ public class AccDataCacheSingleton {
 
             //db.endTransaction();
             bufferBackupPending.put(bufferToBackup, null);
-            Log.d(TAG, "copy to SQLite ok");
+            Log.d(TAG, "copy to SQLite ok (" + bufferToBackup + ")");
             db.close();
             release();
             return 1;
@@ -253,7 +258,7 @@ public class AccDataCacheSingleton {
 
         Map<Integer, Collection<FraaStreamDataUnit>> output = new HashMap<>();
         if (c != null) {
-            Log.d(TAG, "Row count: " + c.getCount());
+            //Log.d(TAG, "Row count: " + c.getCount());
             if (c.moveToFirst()) {
                 do {
                     int rowHeaderId = c.getInt(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_HEADER_ID));

@@ -255,7 +255,7 @@ public class UpstreamService extends Service {
                 maxIndex = index;
             }
         }
-        Log.d(TAG, "Min index: " + minIndex + ", max index: " + maxIndex);
+        //Log.d(TAG, "Min index: " + minIndex + ", max index: " + maxIndex);
         return new FraaStreamMetaData(minIndex, maxIndex);
     }
 
@@ -283,7 +283,7 @@ public class UpstreamService extends Service {
             for (FraaStreamDataUnit unit : units) {
                 if (count == 0 ||
                         (count%MAX_NUMBER_DATA_UNITS_UPSTREAM == 0)) {
-                    Log.d(TAG, "count for new data:" + count);
+                    //Log.d(TAG, "count for new data:" + count);
                     data = new FraaStreamData();
                     data.setHeaderId(serverHeaderId);
                     output.add(data);
@@ -305,12 +305,12 @@ public class UpstreamService extends Service {
                         if (response == null || pendingRequests.get(response) == null) {
                             return;
                         }
-                        Log.i(TAG, "Response id to be removed: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
+                        //Log.i(TAG, "Response id to be removed: " + response + "(" + pendingRequests.get(response).getHeaderId() + ")");
                         // update new serverHeaderId
                         AccDataCacheSingleton obj = getCache();
                         obj.removeFromDatabase(pendingRequests.get(response));
                         pendingRequests.remove(response);
-                        Log.i(TAG, "Response id finished removing: " + response + "(" + data.getHeaderId() + ")");
+                        Log.d(TAG, "Response id finished removing: " + response + "(" + data.getHeaderId() + ")");
                     }
                 }, new Response.ErrorListener() {
             @Override
@@ -328,7 +328,6 @@ public class UpstreamService extends Service {
     }
 
     public long getCreatedAt() {
-        AccDataCacheSingleton cache = getCache();
         return getCache().getCreatedAt();
     }
 

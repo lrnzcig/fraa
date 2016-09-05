@@ -44,11 +44,11 @@ public class CacheService extends Service implements ServiceConnection {
     // device logging
     private Logging loggingModule;
 
-    // cache for keeping the data
-    private AccDataCacheSingleton cache;
-
     // index for data being read from device
     private Integer index;
+
+    // cache singleton
+    private AccDataCacheSingleton cache;
 
     // handler for connecting to the board
     private final MetaWearBoard.ConnectionStateHandler stateHandler = new MetaWearBoard.ConnectionStateHandler() {
@@ -59,10 +59,10 @@ public class CacheService extends Service implements ServiceConnection {
                 Log.d(TAG, "Get accelModule after reconnect");
                 getAccelModule();
             }
-            if (! cache.isStarted()) {
+            //if (! getCache().isStarted()) {
                 Log.d(TAG, "Restart streaming after reconnect");
                 startStreaming();
-            }
+            //}
 
         }
 
@@ -102,13 +102,19 @@ public class CacheService extends Service implements ServiceConnection {
         Log.d(TAG, "startCommand");
         int out = super.onStartCommand(intent, flags, startId);
 
-        btDevice = intent.getParcelableExtra(EXTRA_BT_DEVICE);
+        if (intent == null) {
+            Log.e(TAG, "started with intent == null ????");
+            return START_REDELIVER_INTENT;
+        } else {
+            btDevice = intent.getParcelableExtra(EXTRA_BT_DEVICE);
+        }
 
         bindService(new Intent(this, MetaWearBleService.class), this, BIND_AUTO_CREATE);
         return out;
     }
 
     private void getAccelModule() {
+        getCache().setStarted(false);
         try {
             accelModule = mwBoard.getModule(Accelerometer.class);
             loggingModule = mwBoard.getModule(Logging.class);
@@ -118,10 +124,15 @@ public class CacheService extends Service implements ServiceConnection {
     }
 
     private void startStreaming() {
+        getCache().setStarted(false);
+        if (accelModule == null) {
+            this.stopSelf();
+            return;
+        }
         accelModule.setOutputDataRate(ACC_FREQ);
         accelModule.setAxisSamplingRange(ACC_RANGE);
 
-        cache.start(mwBoard.getMacAddress());
+        getCache().start(mwBoard.getMacAddress());
 
         // streaming
         accelModule.routeData()
@@ -142,7 +153,7 @@ public class CacheService extends Service implements ServiceConnection {
                         unit.setZ(axes.z());
                         getIndexAndIncrement();
 
-                        cache.add(unit);
+                        getCache().add(unit);
                         if (index % 100 == 0) {
                             Log.i(TAG, "New row id inserted " + index);
                         }
@@ -161,7 +172,7 @@ public class CacheService extends Service implements ServiceConnection {
 
         accelModule.enableAxisSampling(); //You must enable axis sampling before you can start
         accelModule.start();
-        cache.setStarted(true);
+        getCache().setStarted(true);
     }
 
     private synchronized int getIndexAndIncrement() {
@@ -172,7 +183,7 @@ public class CacheService extends Service implements ServiceConnection {
     private void stopStreaming() {
         accelModule.disableAxisSampling(); //Likewise, you must first disable axis sampling before stopping
         accelModule.stop();
-        cache.setStarted(false);
+        getCache().setStarted(false);
 
         String message = "Total number of rows inserted " + index;
         Log.i(TAG, message);
@@ -184,16 +195,40 @@ public class CacheService extends Service implements ServiceConnection {
         Log.i(TAG, "onServiceConnected");
         index = 1;
         ///< Typecast the binder to the service's LocalBinder class
-        mwBoard = ((MetaWearBleService.LocalBinder) service).getMetaWearBoard(btDevice);
-        mwBoard.setConnectionStateHandler(stateHandler);
-        getAccelModule();
+        if (btDevice != null) {
+            mwBoard = ((MetaWearBleService.LocalBinder) service).getMetaWearBoard(btDevice);
+            mwBoard.setConnectionStateHandler(stateHandler);
+            if (! mwBoard.isConnected()) {
+                Log.d(TAG, "Reconnect device (only after restart?)");
+                mwBoard.connect();
+            }
+            if (accelModule == null) {
+                Log.d(TAG, "Get accelModule");
+                getAccelModule();
+            }
 
-        cache = AccDataCacheSingleton.getInstance(this.getBaseContext());
-        startStreaming();
+            //if (! getCache().isStarted()) {
+                Log.d(TAG, "(Re)start streaming");
+                startStreaming();
+            //}
+        } else {
+            this.stopSelf();
+        }
     }
 
     @Override
     public void onServiceDisconnected(ComponentName name) {
+
+    }
+
+    private AccDataCacheSingleton getCache() {
+        AccDataCacheSingleton newCache = AccDataCacheSingleton.getInstance(this.getBaseContext());
+        if (cache != null && newCache.getHeaderId() != cache.getHeaderId()) {
+            Log.d(TAG, "A new instance of the singleton has been created?");
+            cache.setStarted(false);
+        }
+        cache = newCache;
+        return cache;
 
     }
 }

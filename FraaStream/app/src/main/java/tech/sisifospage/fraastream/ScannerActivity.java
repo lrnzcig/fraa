@@ -17,6 +17,8 @@ import com.mbientlab.metawear.MetaWearBoard;
 
 import java.util.UUID;
 
+import tech.sisifospage.fraastream.cache.CacheService;
+
 public class ScannerActivity extends AppCompatActivity implements BleScannerFragment.ScannerCommunicationBus, ServiceConnection {
 
     private static final String TAG = "MetaWear.ScanActivity";
@@ -99,10 +101,16 @@ public class ScannerActivity extends AppCompatActivity implements BleScannerFrag
             @Override
             public void connected() {
                 connectDialog.dismiss();
+                Log.i(TAG, "start cache service 1st time");
+                Intent cacheServiceIntent = new Intent(ScannerActivity.this, CacheService.class);
+                cacheServiceIntent.putExtra(CacheService.EXTRA_BT_DEVICE, btDevice);
+                ScannerActivity.this.startService(cacheServiceIntent);
+
                 Log.i(TAG, String.format("MAC Address: %s", mwBoard.getMacAddress()));
                 Intent streamingActivityIntent = new Intent(ScannerActivity.this, StreamingActivity.class);
                 streamingActivityIntent.putExtra(StreamingActivity.EXTRA_BT_DEVICE, btDevice);
                 ScannerActivity.this.startActivity(streamingActivityIntent);
+
             }
 
             @Override
