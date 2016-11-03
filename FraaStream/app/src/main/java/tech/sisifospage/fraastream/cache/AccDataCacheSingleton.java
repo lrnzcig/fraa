@@ -265,8 +265,8 @@ public class AccDataCacheSingleton {
                     FraaStreamDataUnit unit = new FraaStreamDataUnit();
                     unit.setIndex(c.getInt(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_INDEX)));
                     unit.setX(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_X)));
-                    unit.setY(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_X)));
-                    unit.setZ(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_X)));
+                    unit.setY(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_Y)));
+                    unit.setZ(c.getFloat(c.getColumnIndex(AccDataContract.AccDataEntry.COLUMN_NAME_Z)));
                     Collection<FraaStreamDataUnit> list = output.get(rowHeaderId);
                     if (list == null) {
                         list = new ArrayList<>();
